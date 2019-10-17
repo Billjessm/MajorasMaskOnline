@@ -1,0 +1,13 @@
+{
+  "name": "MmOnline",
+  "version": "1.0.0",
+  "description": "",
+  "main": "MmOnline.js",
+  "author": "SpiceyWolf, Psi-Hate",
+  "credits": "Maro, denoflions",
+  "license": "GPL3",
+  "core": "MajorasMask",
+  "dry": {
+    "extends": "./ModLoader64/package-dry.json"
+  }
+}

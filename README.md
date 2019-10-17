@@ -1,4 +1,4 @@
-# ModLoader64 Plugin Base
+# Majora's Mask Online
 Template base for making [ModLoader64](https://github.com/hylian-modding/ModLoader64) Plugins.
 
 ## Starting a new project

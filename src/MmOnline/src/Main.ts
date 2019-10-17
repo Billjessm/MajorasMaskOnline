@@ -15,13 +15,14 @@ import {
 } from 'modloader64_api/NetworkHandler';
 import { InjectCore } from 'modloader64_api/CoreInjection';
 import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
+import * as API from 'modloader64_api/MM/Imports';
 import * as Net from './network/Imports';
 
-export class _name_ implements IPlugin {
+export class MmOnline implements IPlugin {
   ModLoader = {} as IModLoaderAPI;
-  name = '_name_';
+  name = 'MmOnline';
 
-  @InjectCore() core!: _core_;
+  @InjectCore() core!: API.IMMCore;
 
   // Storage Variables
   db = new Net.DatabaseClient();
@@ -35,10 +36,9 @@ export class _name_ implements IPlugin {
   postinit(): void {}
 
   onTick(): void {
-    // You would detect game data and react to it here.
-
-    // EX: Sending packet from client to server -- sending some important game data changes.
-    // this.ModLoader.clientSide.sendPacket(new Net.MyTcpPacket("anyDataHere", this.ModLoader.clientLobby));
+    if (!this.core.isPlaying()) return;
+    
+    this.ModLoader.logger.info("Scene = Testing");
   }
 
   @EventHandler(EventsClient.ON_INJECT_FINISHED)
@@ -59,8 +59,8 @@ export class _name_ implements IPlugin {
     // lobby to set for a play session. EX: combination with
     // below On_Lobby_Join event.
 
-    // lobby.data['_name_:data1_syncing'] = true;
-    // lobby.data['_name_:data2_syncing'] = true;
+    // lobby.data['MmOnline:data1_syncing'] = true;
+    // lobby.data['MmOnline:data2_syncing'] = true;
   }
 
   @EventHandler(EventsClient.ON_LOBBY_JOIN)
@@ -71,8 +71,8 @@ export class _name_ implements IPlugin {
     // and lobby based triggers. EX: combination with above
     // Configure_Lobby event.
 
-    // this.LobbyConfig.data1_syncing = lobby.data['_name_:data1_syncing'];
-    // this.LobbyConfig.data2_syncing = lobby.data['_name_:data2_syncing'];
+    // this.LobbyConfig.data1_syncing = lobby.data['MmOnline:data1_syncing'];
+    // this.LobbyConfig.data2_syncing = lobby.data['MmOnline:data2_syncing'];
     // this.ModLoader.logger.info('OotOnline settings inherited from lobby.');
   }
 
