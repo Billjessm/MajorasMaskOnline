@@ -1,27 +1,32 @@
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
 
-export class MyTcpPacket extends Packet {
-  example_val: any;
-  
-  constructor(lobby: string, example_val: any) {
-    // Set the third value to false if you do not
-    // wish for the packet to be sent to more than
-    // one endpoint ex: client to server, server to specific user
-    super('SyncMyTcpPacket', 'template', lobby, true);
+export class SyncStorage extends Packet {
+  items: Buffer;
+  masks: Buffer;
 
-    this.example_val = example_val;
+  constructor(
+    lobby: string,
+    inventory: Buffer,
+    masks: Buffer
+  ) {
+    super('SyncStorage', 'MmOnline', lobby, false);
+    this.items = inventory;
+    this.masks = masks;
   }
 }
 
-export class MyUdpPacket extends UDPPacket {
-  example_val: any;
-  
-  constructor(lobby: string, example_val: any) {
-    // Set the third value to false if you do not
-    // wish for the packet to be sent to more than
-    // one endpoint ex: client to server, server to specific user
-    super('SyncMyUdpPacket', 'template', lobby, true);
+export class SyncBuffered extends Packet {
+  value: Buffer;
+  constructor(lobby: string, header: string, value: Buffer, persist: boolean) {
+    super(header, 'MmOnline', lobby, persist);
+    this.value = value;
+  }
+}
 
-    this.example_val = example_val;
+export class SyncNumbered extends Packet {
+  value: number;
+  constructor(lobby: string, header: string, value: number, persist: boolean) {
+    super(header, 'MmOnline', lobby, persist);
+    this.value = value;
   }
 }
