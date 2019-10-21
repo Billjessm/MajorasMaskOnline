@@ -81,7 +81,36 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_item_flags(bufData: Buffer, bufStorage: Buffer) {
+    handle_temp_flags(bufData: Buffer, bufStorage: Buffer) 
+    {
+        // Initializers
+        let pData: Net.SyncBuffered;
+        let i: number;
+        let count = 0;
+        let needUpdate = false;
+        
+        bufData = this.core.runtime.temp_flags.get_all();
+        bufStorage = this.db.temp_flags;
+        count = bufData.byteLength;
+
+        // Detect Changes
+        for (i = 0; i < count; i++) 
+        {
+            if (bufData[i] === bufStorage[i]) continue;
+            bufData[i] |= bufStorage[i];
+            this.core.runtime.temp_flags.set(i, bufData[i]);
+            needUpdate = true;
+        }
+
+        // Process Changes
+        if (!needUpdate) return;
+
+        this.db.temp_flags = bufData;
+        pData = new Net.SyncBuffered(this.ModLoader.clientLobby, 'SyncTempFlags', bufData, false);
+        this.ModLoader.clientSide.sendPacket(pData);
+    }
+    
+    handle_item_flags(bufData: Buffer, bufStorage: Buffer)  {
         // Initializers
         let pData: Net.SyncBuffered;
         let i: number;
@@ -173,10 +202,13 @@ export class MmOnline implements IPlugin {
         // Sync Flags
         this.handle_game_flags(bufData!, bufStorage!);
         this.handle_cycle_flags(bufData!, bufStorage!);
-
+        this.handle_temp_flags(bufData!, bufStorage!);
+        
         // Sync Start Menu Items
         this.handle_item_flags(bufData!, bufStorage!);
         this.handle_masks_flags(bufData!, bufStorage!);
+
+
     }
 
     @EventHandler(EventsClient.ON_INJECT_FINISHED)
@@ -247,8 +279,10 @@ export class MmOnline implements IPlugin {
             packet.lobby,
             sDB.game_flags,
             sDB.cycle_flags,
+            sDB.temp_flags,
             sDB.items,
             sDB.masks
+
         );
         this.ModLoader.serverSide.sendPacketToSpecificPlayer(pData, packet.player);
     }
@@ -303,6 +337,32 @@ export class MmOnline implements IPlugin {
         this.ModLoader.serverSide.sendPacket(pData);
 
         this.ModLoader.logger.info('[Server] Updated: {Cycle Flags}');
+    }
+
+    @ServerNetworkHandler('SyncTempFlags')
+    onServer_SyncTempFlags(packet: Net.SyncBuffered) {
+        this.ModLoader.logger.info('[Server] Received: {Temp Flags}');
+
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let data: Buffer = sDB.temp_flags;
+        let count: number = data.byteLength;
+        let i = 0;
+        let needUpdate = false;
+
+        for (i = 0; i < count; i++) {
+            if (data[i] === packet.value[i]) continue;
+            data[i] |= packet.value[i];
+            needUpdate = true;
+        }
+
+        if (!needUpdate) return;
+
+        sDB.temp_flags = data;
+
+        let pData = new Net.SyncBuffered(packet.lobby, 'SyncTempFlags', data, true);
+        this.ModLoader.serverSide.sendPacket(pData);
+
+        this.ModLoader.logger.info('[Server] Updated: Temp Flags}');
     }
 
     @ServerNetworkHandler('SyncItemSlots')
@@ -383,6 +443,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Lobby Storage}');
         this.db.game_flags = packet.game_flags;
         this.db.cycle_flags = packet.cycle_flags;
+        this.db.temp_flags = packet.temp_flags;
         this.db.items = packet.items;
         this.db.masks = packet.masks
     }
@@ -429,6 +490,28 @@ export class MmOnline implements IPlugin {
         this.db.cycle_flags = data;
 
         this.ModLoader.logger.info('[Client] Updated: {Cycle Flags}');
+    }
+
+    @NetworkHandler('SyncTempFlags')
+    onClient_SyncTempFlags(packet: Net.SyncBuffered) {
+        this.ModLoader.logger.info('[Client] Received: {Temp Flags}');
+
+        let data: Buffer = this.db.temp_flags;
+        let count: number = data.byteLength;
+        let i = 0;
+        let needUpdate = false;
+
+        for (i = 0; i < count; i++) {
+            if (data[i] === packet.value[i]) continue;
+            data[i] |= packet.value[i];
+            needUpdate = true;
+        }
+
+        if (!needUpdate) return;
+
+        this.db.temp_flags = data;
+
+        this.ModLoader.logger.info('[Client] Updated: {Temp Flags}');
     }
 
     @NetworkHandler('SyncItemSlots')

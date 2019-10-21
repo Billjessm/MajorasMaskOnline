@@ -3,6 +3,7 @@ import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
 export class SyncStorage extends Packet {
   game_flags: Buffer;
   cycle_flags: Buffer;
+  temp_flags: Buffer;
   items: Buffer;
   masks: Buffer;
 
@@ -10,6 +11,7 @@ export class SyncStorage extends Packet {
     lobby: string,
     game_flags: Buffer,
     cycle_flags: Buffer,
+    temp_flags: Buffer,
     inventory: Buffer,
     masks: Buffer
   ) {
@@ -18,6 +20,7 @@ export class SyncStorage extends Packet {
     this.cycle_flags = cycle_flags;
     this.items = inventory;
     this.masks = masks;
+    this.temp_flags = temp_flags;
   }
 }
 
