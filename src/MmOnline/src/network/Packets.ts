@@ -1,15 +1,21 @@
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
 
 export class SyncStorage extends Packet {
+  game_flags: Buffer;
+  cycle_flags: Buffer;
   items: Buffer;
   masks: Buffer;
 
   constructor(
     lobby: string,
+    game_flags: Buffer,
+    cycle_flags: Buffer,
     inventory: Buffer,
     masks: Buffer
   ) {
     super('SyncStorage', 'MmOnline', lobby, false);
+    this.game_flags = game_flags;
+    this.cycle_flags = cycle_flags;
     this.items = inventory;
     this.masks = masks;
   }
