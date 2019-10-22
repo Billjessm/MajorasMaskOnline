@@ -1,53 +1,74 @@
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
+import * as DB from './Database';
 
 export class SyncStorage extends Packet {
-  game_flags: Buffer;
-  cycle_flags: Buffer;
-  scene_data: any;
-  items: Buffer;
-  masks: Buffer;
+    cycle_flags: Buffer;
+    event_flags: Buffer;
+    game_flags: Buffer;
+    owl_flags: Buffer;
+    scene_data: any;
+    items: Buffer;
+    masks: Buffer;
+    clock: DB.ClockData;
+    game_active: boolean;
 
-  constructor(
-    lobby: string,
-    game_flags: Buffer,
-    cycle_flags: Buffer,
-    scene_data: any,
-    inventory: Buffer,
-    masks: Buffer,
-  ) {
-    super('SyncStorage', 'MmOnline', lobby, false);
-    this.game_flags = game_flags;
-    this.cycle_flags = cycle_flags;
-    this.items = inventory;
-    this.masks = masks;
-    this.scene_data = scene_data;
-  }
+    constructor(
+        lobby: string,
+        cycle_flags: Buffer,
+        event_flags: Buffer,
+        game_flags: Buffer,
+        owl_flags: Buffer,
+        scene_data: any,
+        inventory: Buffer,
+        masks: Buffer,
+        clock: DB.ClockData,
+        game_active: boolean
+    ) {
+        super('SyncStorage', 'MmOnline', lobby, false);
+        this.cycle_flags = cycle_flags;
+        this.event_flags = event_flags;
+        this.game_flags = game_flags;
+        this.owl_flags = owl_flags;
+        this.scene_data = scene_data;
+        this.items = inventory;
+        this.masks = masks;
+        this.clock = clock;
+        this.game_active = game_active;
+    }
 }
 
 export class SyncBuffered extends Packet {
-  value: Buffer;
-  constructor(lobby: string, header: string, value: Buffer, persist: boolean) {
-    super(header, 'MmOnline', lobby, persist);
-    this.value = value;
-  }
+    value: Buffer;
+    constructor(lobby: string, header: string, value: Buffer, persist: boolean) {
+        super(header, 'MmOnline', lobby, persist);
+        this.value = value;
+    }
 }
 
 export class SyncNumbered extends Packet {
-  value: number;
-  constructor(lobby: string, header: string, value: number, persist: boolean) {
-    super(header, 'MmOnline', lobby, persist);
-    this.value = value;
-  }
+    value: number;
+    constructor(lobby: string, header: string, value: number, persist: boolean) {
+        super(header, 'MmOnline', lobby, persist);
+        this.value = value;
+    }
 }
 
 export class SyncSceneData extends Packet {
-  scene: number;
-  flags: Buffer;
-  constructor(lobby: string, header: string, scene: number, flags: Buffer, persist: boolean) {
-    super(header, 'MmOnline', lobby, persist);
-    this.scene = scene;
-    this.flags = flags;
-  }
+    scene: number;
+    flags: Buffer;
+    constructor(lobby: string, scene: number, flags: Buffer, persist: boolean) {
+        super("SyncSceneData", 'MmOnline', lobby, persist);
+        this.scene = scene;
+        this.flags = flags;
+    }
+}
+
+export class SyncClock extends Packet {
+    clock: DB.ClockData;
+    constructor(lobby: string, clock: DB.ClockData) {
+        super("SyncClock", 'MmOnline', lobby, true);
+        this.clock = clock;
+    }
 }
 
 // #################################################
@@ -63,9 +84,9 @@ export class SyncSceneData extends Packet {
 // }
 
 export class SyncLocation extends Packet {
-  scene: number;
-  constructor(lobby: string, scene: number) {
-      super('SyncLocation', 'MmOnline', lobby, true);
-      this.scene = scene;
-  }
+    scene: number;
+    constructor(lobby: string, scene: number) {
+        super('SyncLocation', 'MmOnline', lobby, true);
+        this.scene = scene;
+    }
 }
