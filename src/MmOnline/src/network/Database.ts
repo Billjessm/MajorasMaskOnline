@@ -7,7 +7,7 @@ export class Database {
     scene_data: any = {};
 
     items: Buffer = Buffer.alloc(0x18, -1);
-    masks: Buffer = Buffer.alloc(0x18, -1);   
+    masks: Buffer = Buffer.alloc(0x18, -1);
     
     clock: ClockData = new ClockData();
 
@@ -16,6 +16,7 @@ export class Database {
 }
 
 export class DatabaseClient extends Database {
+    cycle_reset: number = 0;
     clock_init: boolean = false;
     clock_need_update: boolean = false;
     cycle_need_update: boolean = false;
