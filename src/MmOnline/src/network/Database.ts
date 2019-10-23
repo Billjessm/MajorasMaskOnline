@@ -16,7 +16,7 @@ export class Database {
 }
 
 export class DatabaseClient extends Database {
-    cycle_reset: number = 0;
+    time_reset: boolean = false;
     clock_init: boolean = false;
     clock_need_update: boolean = false;
     cycle_need_update: boolean = false;

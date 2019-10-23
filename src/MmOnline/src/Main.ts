@@ -45,31 +45,36 @@ export class MmOnline implements IPlugin {
         db.scene_data[scene] = new Net.SceneData();
     }
 
+    handle_reset_time(scene: number) {
+        if (scene === this.curScene) return;
+
+        // Make sure we are on cutscene map
+        if (scene !== 0x08) return;
+
+        // Make sure we are invoking ocarina reset time
+        if (this.core.runtime.cutscene_ptr !== 0x8072d7d0) return;
+
+        // Only progress if we havent invoked a time reset
+        if (this.db.time_reset) return;
+        this.db.time_reset = true;
+
+        this.ModLoader.clientSide.sendPacket(
+            new Packet(
+                'SyncTimeReset',
+                'MmOnline',
+                this.ModLoader.clientLobby,
+                false
+            )
+        );
+    }
+
     handle_scene_change(scene: number) {
         if (scene === this.curScene) return;
 
         // Clock can begin functioning
         if (this.curScene === 0x804d) {
             this.db.clock_init = true;
-            if (this.db.cycle_reset === 2) {
-                this.db.cycle_reset = 0;
-            }
-        }
-
-        // We need to notify to go back in time
-        if (scene === 0x08) {
-            if (!this.db.cycle_reset) {
-                let cycle_reset = new Packet(
-                    'SyncCycleReset',
-                    'MmOnline',
-                    this.ModLoader.clientLobby,
-                    false
-                );
-                this.db.cycle_reset = 1;
-                this.ModLoader.clientSide.sendPacket(cycle_reset);
-            }
-        } else if (this.curScene === 0x08) {
-            this.db.cycle_reset = 2;
+            this.db.time_reset = false;
         }
 
         // Set global to current scene value
@@ -394,11 +399,12 @@ export class MmOnline implements IPlugin {
             !this.db.clock_init) this.reset_session(true);
 
         // General Setup/Handlers
+        this.handle_reset_time(scene);
         this.handle_scene_change(scene);
         // this.handle_puppets(scene);
 
         // Need to finish resetting the cycle
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         // Sync Flags
         this.handle_cycle_flags(bufData!, bufStorage!);
@@ -509,26 +515,134 @@ export class MmOnline implements IPlugin {
         this.ModLoader.serverSide.sendPacketToSpecificPlayer(pData, packet.player);
     }
 
-    @ServerNetworkHandler('SyncCycleReset')
-    onServer_SyncCycleReset(packet: Packet): void {
-        this.ModLoader.logger.info('[Server] Invoked: {Cycle Reset}');
-
-        // Tell everyone to reset right now
-        this.ModLoader.serverSide.sendPacket(new Packet('SyncCycleReset', 'MmOnline', packet.lobby, true));
+    @ServerNetworkHandler('SyncTimeReset')
+    onServer_SyncTimeReset(packet: Net.SyncTimeReset): void {
+        this.ModLoader.logger.info('[Server] Invoked: {Time Reset}');
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
-        sDB.cycle_flags.fill(0);
-        sDB.event_flags.fill(0);
 
-        Object.keys(sDB.scene_data).forEach((key: string) => {
-            sDB.scene_data[key] = new Net.SceneData();
-        });
-        
-        sDB.items.fill(-1);
-        sDB.masks.fill(-1);
-        
-        //sDB.clock = new Net.ClockData();
+        // Clear the cycle values
+        {
+            sDB.cycle_flags.fill(0);
+
+            // Clear temp events
+            sDB.event_flags[0] &= 0xfe;
+            sDB.event_flags[4] = 0x00;
+            sDB.event_flags[5] = 0x00;
+            sDB.event_flags[6] = 0x00;
+            sDB.event_flags[7] &= 0x80;
+            sDB.event_flags[8] &= 20;
+            sDB.event_flags[9] = 0x00;
+            sDB.event_flags[10] &= 0x08;
+            sDB.event_flags[11] = 0x00;
+            sDB.event_flags[12] &= 0x10;
+            sDB.event_flags[13] &= 0x40;
+            sDB.event_flags[14] &= 0x80;
+            sDB.event_flags[15] &= 0x20;
+            sDB.event_flags[16] = 0x00;
+            sDB.event_flags[17] = 0x00;
+            sDB.event_flags[18] = 0x00;
+            sDB.event_flags[19] = 0x00;
+            sDB.event_flags[20] = 0x00;
+            sDB.event_flags[21] = 0x00;
+            sDB.event_flags[22] &= 0x82;
+            sDB.event_flags[23] &= 0x82;
+            sDB.event_flags[24] &= 0x82;
+            sDB.event_flags[25] &= 0x01;
+            sDB.event_flags[26] &= 0x40;
+            sDB.event_flags[27] = 0x00;
+            sDB.event_flags[28] = 0x00;
+            sDB.event_flags[29] = 0x00;
+            sDB.event_flags[30] &= 0xf0;
+            sDB.event_flags[31] &= 0x27;
+            sDB.event_flags[32] &= 0x07;
+            sDB.event_flags[33] = 0x00;
+            sDB.event_flags[34] = 0x00;
+            sDB.event_flags[35] &= 0xbf;
+            sDB.event_flags[36] = 0x00;
+            sDB.event_flags[37] = 0x00;
+            sDB.event_flags[38] &= 0x20;
+            sDB.event_flags[39] &= 0x20;
+            sDB.event_flags[40] = 0x00;
+            sDB.event_flags[41] &= 0x08;
+            sDB.event_flags[42] = 0x00;
+            sDB.event_flags[43] = 0x00;
+            sDB.event_flags[44] = 0x00;
+            sDB.event_flags[45] = 0x00;
+            sDB.event_flags[46] = 0x00;
+            sDB.event_flags[47] = 0x00;
+            sDB.event_flags[48] = 0x00;
+            sDB.event_flags[49] = 0x00;
+            sDB.event_flags[50] &= 0x06;
+            sDB.event_flags[51] = 0x00;
+            sDB.event_flags[52] = 0x00;
+            sDB.event_flags[53] &= 0x42;
+            sDB.event_flags[54] &= 0x40;
+            sDB.event_flags[55] = 0x00;
+            sDB.event_flags[56] &= 0x02;
+            sDB.event_flags[57] &= 0x08;
+            sDB.event_flags[58] = 0x00;
+            sDB.event_flags[59] &= 0x3c;
+            sDB.event_flags[60] &= 0x10;
+            sDB.event_flags[61] = 0x00;
+            sDB.event_flags[62] = 0x00;
+            sDB.event_flags[63] &= 0x20;
+            sDB.event_flags[64] = 0x00;
+            sDB.event_flags[65] = 0x00;
+            sDB.event_flags[73] &= 0x08;
+            sDB.event_flags[74] = 0x00;
+            sDB.event_flags[75] &= 0x80;
+            sDB.event_flags[76] = 0x00;
+            sDB.event_flags[77] &= 0x01;
+            sDB.event_flags[78] = 0x00;
+            sDB.event_flags[79] &= 0x80;
+            sDB.event_flags[80] = 0x00;
+            sDB.event_flags[81] &= 0x08;
+            sDB.event_flags[82] &= 0x10;
+            sDB.event_flags[83] = 0x00;
+            sDB.event_flags[84] = 0x00;
+            sDB.event_flags[85] = 0x00;
+            sDB.event_flags[86] &= 0x80;
+            sDB.event_flags[87] &= 0xfc;
+            sDB.event_flags[88] = 0x00;
+            sDB.event_flags[89] = 0x00;
+            sDB.event_flags[90] &= 0x10;
+            sDB.event_flags[91] = 0x00;
+            sDB.event_flags[92] &= 0x01;
+            sDB.event_flags[93] &= 0x0c;
+            sDB.event_flags[94] = 0x00;
+            sDB.event_flags[95] = 0x00;
+            sDB.event_flags[96] = 0x00;
+            sDB.event_flags[97] = 0x00;
+            sDB.event_flags[98] = 0x00;
+            sDB.event_flags[99] = 0x00;
+
+            Object.keys(sDB.scene_data).forEach((key: string) => {
+                sDB.scene_data[key] = new Net.SceneData();
+            });
+        }
+
+        // Reset everyones clock
+        sDB.clock.current_day = 1;
+        sDB.clock.elapsed = 1;
+        sDB.clock.is_night = false;
+        sDB.clock.time = 0x4000;
+
+        // Reset everyones cycle
+        let pData = new Net.SyncTimeReset(
+            packet.lobby,
+            sDB.cycle_flags,
+            sDB.event_flags,
+            sDB.items,
+            sDB.masks,
+            true
+        );
+
+        this.ModLoader.serverSide.sendPacket(
+            new Net.SyncClock(packet.lobby, sDB.clock)
+        );
+        this.ModLoader.serverSide.sendPacket(pData);
     }
 
     @ServerNetworkHandler('SyncCycleFlags')
@@ -841,28 +955,36 @@ export class MmOnline implements IPlugin {
         this.db.game_active = packet.game_active;
     }
 
-    @NetworkHandler('SyncCycleReset')
-    onClient_SyncCycleReset(packet: Packet): void {
-        this.ModLoader.logger.info('[Client] Invoked: {Cycle Reset}');
+    @NetworkHandler('SyncTimeReset')
+    onClient_SyncTimeReset(packet: Net.SyncTimeReset): void {
+        this.ModLoader.logger.info('[Client] Invoked: {Time Reset}');
 
-        this.db.cycle_reset = 1;
+        // Should not invoke this function if not in game yet!
+        if (!this.core.isPlaying()) return;
+
+        // Fix to game
+        this.core.save.cycle_flags.set_all(packet.cycle_flags);
 
         // Initializers
-        this.db.cycle_flags.fill(0);
-        this.db.event_flags.fill(0);
+        this.db.cycle_flags = packet.cycle_flags;
+        this.db.event_flags = packet.event_flags;
+
+        this.db.items = packet.items;
+        this.db.masks = packet.masks;
 
         Object.keys(this.db.scene_data).forEach((key: string) => {
             this.db.scene_data[key] = new Net.SceneData();
         });
 
-        this.db.items.fill(-1);
-        this.db.masks.fill(-1);
+        this.core.save.cycle_flags.set_all(this.db.cycle_flags);
+        this.core.save.event_flags.set_all(this.db.event_flags);
 
-        if (this.core.isPlaying()) {
-            this.core.save.cycle_flags.set_all(this.db.cycle_flags);
-            // this.db.clock = new Net.ClockData();
-            // this.db.clock_init = false;
-        }
+        this.core.save.item_slots.array = this.db.items;
+        this.core.save.mask_slots.array = this.db.masks;
+
+        this.core.runtime.scene_flags.set_all(Buffer.alloc(0x14));
+
+        if (!this.db.time_reset) this.core.runtime.goto_scene(0x0000D800);
     }
 
     @NetworkHandler('SyncCycleFlags')
@@ -870,7 +992,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Cycle Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         let data: Buffer = this.db.cycle_flags;
         let count: number = data.byteLength;
@@ -898,7 +1020,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Event Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         let data: Buffer = this.db.event_flags;
         let count: number = data.byteLength;
@@ -926,7 +1048,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Game Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         let data: Buffer = this.db.game_flags;
         let count: number = data.byteLength;
@@ -954,7 +1076,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Owl Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         let data: Buffer = this.db.owl_flags;
         let count: number = data.byteLength;
@@ -982,7 +1104,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Scene Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         // Ensure we have this scene data!
         this.check_db_instance(this.db, packet.scene);
@@ -1013,7 +1135,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Item Slots}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         // Initializers
         let data: Buffer = this.db.items;
@@ -1048,7 +1170,7 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Mask Slots}');
 
         // Do not set new data until finished reset
-        if (this.db.cycle_reset !== 0) return;
+        if (this.db.time_reset) return;
 
         // Initializers
         let data: Buffer = this.db.masks;

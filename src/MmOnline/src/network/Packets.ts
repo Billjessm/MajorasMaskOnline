@@ -71,6 +71,27 @@ export class SyncClock extends Packet {
     }
 }
 
+export class SyncTimeReset extends Packet {
+    cycle_flags: Buffer;
+    event_flags: Buffer;
+    items: Buffer;
+    masks: Buffer;
+    constructor(
+        lobby: string,
+        cycle_flags: Buffer,
+        event_flags: Buffer,
+        items: Buffer,
+        masks: Buffer,
+        persist: boolean
+    ) {
+        super("SyncTimeReset", 'MmOnline', lobby, true);
+        this.cycle_flags = cycle_flags;
+        this.event_flags = event_flags;
+        this.items = items;
+        this.masks = masks;
+    }
+}
+
 // #################################################
 // ##  Puppet Tracking
 // #################################################
