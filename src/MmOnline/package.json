@@ -1,11 +1,11 @@
 {
   "name": "MmOnline",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "",
   "main": "MmOnline.js",
   "author": "SpiceyWolf, Psi-Hate",
   "credits": "Maro, denoflions",
   "license": "GPL3",
   "core": "MajorasMask",
-  "updateUrl": "https://raw.githubusercontent.com/hylian-modding/MajorasMaskOnline/master/Package/update.json"
+  "updateUrl": "https://raw.githubusercontent.com/hylian-modding/MajorasMaskOnline/master/update.json"
 }
