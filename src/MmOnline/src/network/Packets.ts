@@ -7,6 +7,9 @@ export class SyncStorage extends Packet {
     game_flags: Buffer;
     owl_flags: Buffer;
     scene_data: any;
+    bank: number;
+    quest_status: number;
+    equips: DB.EquipData;
     items: Buffer;
     masks: Buffer;
     clock: DB.ClockData;
@@ -19,7 +22,10 @@ export class SyncStorage extends Packet {
         game_flags: Buffer,
         owl_flags: Buffer,
         scene_data: any,
-        inventory: Buffer,
+        bank: number,
+        quest_status: number,
+        equips: DB.EquipData,
+        items: Buffer,
         masks: Buffer,
         clock: DB.ClockData,
         game_active: boolean
@@ -30,7 +36,10 @@ export class SyncStorage extends Packet {
         this.game_flags = game_flags;
         this.owl_flags = owl_flags;
         this.scene_data = scene_data;
-        this.items = inventory;
+        this.bank = bank;
+        this.quest_status = quest_status;
+        this.equips = equips;
+        this.items = items;
         this.masks = masks;
         this.clock = clock;
         this.game_active = game_active;
@@ -57,7 +66,7 @@ export class SyncSceneData extends Packet {
     scene: number;
     flags: Buffer;
     constructor(lobby: string, scene: number, flags: Buffer, persist: boolean) {
-        super("SyncSceneData", 'MmOnline', lobby, persist);
+        super('SyncSceneData', 'MmOnline', lobby, persist);
         this.scene = scene;
         this.flags = flags;
     }
@@ -66,8 +75,20 @@ export class SyncSceneData extends Packet {
 export class SyncClock extends Packet {
     clock: DB.ClockData;
     constructor(lobby: string, clock: DB.ClockData) {
-        super("SyncClock", 'MmOnline', lobby, true);
+        super('SyncClock', 'MmOnline', lobby, true);
         this.clock = clock;
+    }
+}
+
+export class SyncEquipSlots extends Packet {
+    equips: DB.EquipData
+    constructor(
+        lobby: string, 
+        equips: DB.EquipData,
+        persist: boolean
+    ) {
+        super('SyncEquipSlots', 'MmOnline', lobby, persist);
+        this.equips = equips;
     }
 }
 
@@ -84,7 +105,7 @@ export class SyncTimeReset extends Packet {
         masks: Buffer,
         persist: boolean
     ) {
-        super("SyncTimeReset", 'MmOnline', lobby, true);
+        super('SyncTimeReset', 'MmOnline', lobby, true);
         this.cycle_flags = cycle_flags;
         this.event_flags = event_flags;
         this.items = items;

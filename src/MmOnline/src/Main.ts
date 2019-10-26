@@ -37,6 +37,8 @@ export class MmOnline implements IPlugin {
         this.db.clock_need_update = true;
         this.db.cycle_need_update = true;
         this.db.event_need_update = true;
+
+        this.db.bank_need_update = true;
     }
 
     check_db_instance(db: Net.Database, scene: number) {
@@ -143,6 +145,7 @@ export class MmOnline implements IPlugin {
             if (bufData[i] === bufStorage[i]) continue;
             bufData[i] |= bufStorage[i];
             this.core.save.event_flags.set(i, bufData[i]);
+            this.ModLoader.logger.info('EVENT: ' + i);
             needUpdate = true;
         }
 
@@ -233,6 +236,108 @@ export class MmOnline implements IPlugin {
 
         this.db.scene_data[scene].flags = bufData;
         pData = new Net.SyncSceneData(this.ModLoader.clientLobby, scene, bufData, false);
+        this.ModLoader.clientSide.sendPacket(pData);
+    }
+
+    handle_bank() {
+        if (this.db.bank_need_update) {
+            this.core.save.bank = this.db.bank;
+            this.db.bank_need_update = false;
+            return;
+        }
+
+        // Initializers
+        let count = this.core.save.bank;
+        let needUpdate = false;
+
+        if (count !== this.db.bank) needUpdate = true;
+        
+        // Process Changes
+        if (!needUpdate) return;
+
+        this.db.bank = count;
+
+        // Send changes to server
+        let pData = new Net.SyncNumbered(this.ModLoader.clientLobby, 'SyncBank', count, true);
+        this.ModLoader.clientSide.sendPacket(pData);
+    }
+
+    handle_quest_status() {
+        // Initializers
+        let status = this.core.save.quest_status;
+        let needUpdate = false;
+
+        if (status !== this.db.quest_status) {
+            status |= this.db.quest_status;
+            needUpdate = true;
+        }
+        
+        // Process Changes
+        if (!needUpdate) return;
+
+        this.core.save.quest_status = status;
+        this.db.quest_status = status;
+
+        // Send changes to server
+        let pData = new Net.SyncNumbered(this.ModLoader.clientLobby, 'SyncQuestStatus', status, false);
+        this.ModLoader.clientSide.sendPacket(pData);
+    }
+
+    handle_equip_flags() {
+        // Initializers
+        let val1: number;
+        let val2: number;
+        let needUpdate = false;
+
+        let equips: Net.EquipData = new Net.EquipData();
+        equips.sword = this.core.save.equip_slots.sword;
+        equips.shield = this.core.save.equip_slots.shield;
+        equips.quiver = this.core.save.equip_slots.quiver;
+        equips.bomb_bag = this.core.save.equip_slots.bomb_bag;
+
+        if (equips.sword < this.db.equips.sword) {
+            this.core.save.equip_slots.sword = this.db.equips.sword;
+            equips.sword = this.db.equips.sword;
+        } else if (equips.sword > this.db.equips.sword) {
+            needUpdate = true;
+        }
+
+        if (equips.shield < this.db.equips.shield) {
+            this.core.save.equip_slots.shield = this.db.equips.shield;
+            equips.shield = this.db.equips.shield;
+        } else if (equips.shield > this.db.equips.shield) {
+            needUpdate = true;
+        }
+        
+        val1 = equips.bomb_bag !== 255 ? equips.bomb_bag : -1;
+        val2 = this.db.equips.bomb_bag !== 255 ? this.db.equips.bomb_bag : -1;
+
+        if (val1 > val2) {
+            needUpdate = true;
+        } else if (val1 < val2) {
+            this.core.save.equip_slots.bomb_bag = this.db.equips.bomb_bag;
+            equips.bomb_bag = this.db.equips.bomb_bag;
+            needUpdate = true;
+        }
+        
+        val1 = equips.quiver !== 255 ? equips.quiver : -1;
+        val2 = this.db.equips.quiver !== 255 ? this.db.equips.quiver : -1;
+
+        if (val1 > val2) {
+            needUpdate = true;
+        } else if (val1 < val2) {
+            this.core.save.equip_slots.quiver = this.db.equips.quiver;
+            equips.quiver = this.db.equips.quiver;
+            needUpdate = true;
+        }
+        
+        // Process Changes
+        if (!needUpdate) return;
+
+        this.db.equips = equips;
+
+        // Send changes to server
+        let pData = new Net.SyncEquipSlots(this.ModLoader.clientLobby, equips, false);
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
@@ -412,8 +517,13 @@ export class MmOnline implements IPlugin {
         this.handle_game_flags(bufData!, bufStorage!);
         this.handle_owl_flags(bufData!, bufStorage!);
         this.handle_scene_data(bufData!, bufStorage!);
+        
+        // Sync Misc
+        this.handle_bank();
+        this.handle_quest_status();
 
         // Sync Start Menu Items
+        this.handle_equip_flags();
         this.handle_item_flags(bufData!, bufStorage!);
         this.handle_masks_flags(bufData!, bufStorage!);
 
@@ -507,6 +617,9 @@ export class MmOnline implements IPlugin {
             sDB.game_flags,
             sDB.owl_flags,
             sDB.scene_data,
+            sDB.bank,
+            sDB.quest_status,
+            sDB.equips,
             sDB.items,
             sDB.masks,
             sDB.clock,
@@ -794,6 +907,110 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Updated: {Scene Flags}');
     }
 
+    @ServerNetworkHandler('SyncBank')
+    onServer_SyncBank(packet: Net.SyncNumbered): void {
+        this.ModLoader.logger.info('[Server] Received: {Bank Balance}');
+
+        // Initializers
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let count: number = sDB.bank;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        sDB.game_active = true;
+
+        if (count !== packet.value) needUpdate = true;
+
+        if (!needUpdate) return;
+
+        sDB.bank = packet.value;
+
+        this.ModLoader.logger.info('[Server] Updated: {Bank Balance}');
+    }
+
+    @ServerNetworkHandler('SyncQuestStatus')
+    onServer_SyncQuestStatus(packet: Net.SyncNumbered): void {
+        this.ModLoader.logger.info('[Server] Received: {Quest Status}');
+
+        // Initializers
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let status: number = sDB.quest_status;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        sDB.game_active = true;
+
+        if (status !== packet.value) {
+            status |= packet.value;
+            needUpdate = true;
+        }
+
+        if (!needUpdate) return;
+
+        sDB.quest_status = status;
+
+        // Send changes to clients
+        let pData = new Net.SyncNumbered(packet.lobby, 'SyncQuestStatus', status, true);
+        this.ModLoader.serverSide.sendPacket(pData);
+
+        this.ModLoader.logger.info('[Server] Updated: {Quest Status}');
+    }
+
+    @ServerNetworkHandler('SyncEquipSlots')
+    onServer_SyncEquipSlots(packet: Net.SyncEquipSlots): void {
+        this.ModLoader.logger.info('[Server] Received: {Equip Slots}');
+
+        // Initializers
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let equips: Net.EquipData = sDB.equips;
+        let val1: number;
+        let val2: number;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        sDB.game_active = true;
+
+        if (equips.sword < packet.equips.sword) {
+            equips.sword = packet.equips.sword;
+            needUpdate = true;
+        }
+
+        if (equips.shield < packet.equips.shield) {
+            equips.shield = packet.equips.shield;
+            needUpdate = true;
+        }
+
+        val1 = equips.bomb_bag !== 255 ? equips.bomb_bag : -1;
+        val2 = packet.equips.bomb_bag !== 255 ? packet.equips.bomb_bag : -1;
+
+        if (val1 > val2) {
+            needUpdate = true;
+        } else if (val1 < val2) {
+            equips.bomb_bag = packet.equips.bomb_bag;
+            needUpdate = true;
+        }        
+
+        val1 = equips.quiver !== 255 ? equips.quiver : -1;
+        val2 = packet.equips.quiver !== 255 ? packet.equips.quiver : -1;
+
+        if (val1 > val2) {
+            needUpdate = true;
+        } else if (val1 < val2) {
+            equips.quiver = packet.equips.quiver;
+            needUpdate = true;
+        }
+        
+        if (!needUpdate) return;
+
+        sDB.equips = equips;
+
+        // Send changes to clients
+        let pData = new Net.SyncEquipSlots(packet.lobby, equips, true);
+        this.ModLoader.serverSide.sendPacket(pData);
+
+        this.ModLoader.logger.info('[Server] Updated: {Equip Slots}');
+    }
+
     @ServerNetworkHandler('SyncItemSlots')
     onServer_SyncItemSlots(packet: Net.SyncBuffered): void {
         this.ModLoader.logger.info('[Server] Received: {Item Slots}');
@@ -949,6 +1166,9 @@ export class MmOnline implements IPlugin {
         this.db.game_flags = packet.game_flags;
         this.db.owl_flags = packet.owl_flags;
         this.db.scene_data = packet.scene_data;
+        this.db.bank = packet.bank;
+        this.db.quest_status = packet.quest_status;
+        this.db.equips = packet.equips;
         this.db.items = packet.items;
         this.db.masks = packet.masks;
         this.db.clock = packet.clock;
@@ -1128,6 +1348,109 @@ export class MmOnline implements IPlugin {
         this.db.scene_data[packet.scene].flags = data;
 
         this.ModLoader.logger.info('[Client] Updated: {Scene Flags}');
+    }
+
+    @NetworkHandler('SyncBank')
+    onClient_SyncBank(packet: Net.SyncNumbered): void {
+        this.ModLoader.logger.info('[Client] Received: {Bank Balance}');
+
+        // Do not set new data until finished reset
+        if (this.db.time_reset) return;
+
+        // Initializers
+        let count: number = this.db.bank;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        if (count !== packet.value) needUpdate = true;
+
+        if (!needUpdate) return;
+
+        this.db.bank = packet.value;
+        this.db.bank_need_update = true;
+
+        this.ModLoader.logger.info('[Client] Updated: {Bank Balance}');
+    }
+
+    @NetworkHandler('SyncQuestStatus')
+    onClient_SyncQuestStatus(packet: Net.SyncNumbered): void {
+        this.ModLoader.logger.info('[Client] Received: {Quest Status}');
+
+        // Do not set new data until finished reset
+        if (this.db.time_reset) return;
+
+        // Initializers
+        let status: number = this.db.quest_status;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        if (status !== packet.value) {
+            status |= packet.value;
+            needUpdate = true;
+        }
+
+        if (!needUpdate) return;
+
+        this.db.quest_status = status;
+
+        this.ModLoader.logger.info('[Client] Updated: {Quest Status}');
+    }
+
+    @NetworkHandler('SyncEquipSlots')
+    onClient_SyncEquipSlots(packet: Net.SyncEquipSlots): void {
+        this.ModLoader.logger.info('[Client] Received: {Equip Slots}');
+
+        // Do not set new data until finished reset
+        if (this.db.time_reset) return;
+
+        // Initializers
+        let equips: Net.EquipData = this.db.equips;
+        let val1: number;
+        let val2: number;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        if (equips.sword < packet.equips.sword) {
+            equips.sword = packet.equips.sword;
+            needUpdate = true;
+        }
+
+        if (equips.shield < packet.equips.shield) {
+            equips.shield = packet.equips.shield;
+            needUpdate = true;
+        }
+        
+        val1 = equips.bomb_bag !== 255 ? equips.bomb_bag : -1;
+        val2 = packet.equips.bomb_bag !== 255 ? packet.equips.bomb_bag : -1;
+
+        if (val1 > val2) {
+            needUpdate = true;
+        } else if (val1 < val2) {
+            equips.bomb_bag = packet.equips.bomb_bag;
+            needUpdate = true;
+        }
+        
+        val1 = equips.quiver !== 255 ? equips.quiver : -1;
+        val2 = packet.equips.quiver !== 255 ? packet.equips.quiver : -1;
+
+        if (val1 > val2) {
+            needUpdate = true;
+        } else if (val1 < val2) {
+            equips.quiver = packet.equips.quiver;
+            needUpdate = true;
+        }
+        
+        if (!needUpdate) return;
+
+        this.db.equips = equips;
+
+        this.ModLoader.logger.info('[Client] Updated: {Equip Slots}');
     }
 
     @NetworkHandler('SyncItemSlots')
