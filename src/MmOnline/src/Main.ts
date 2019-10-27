@@ -171,7 +171,7 @@ export class MmOnline implements IPlugin {
             // Bomber kid exclusion
             {
                 if (bufData[73] !== bufStorage[73]) {
-                    bufData[75] |= bufStorage[73];
+                    bufData[73] |= bufStorage[73];
                     this.core.save.event_flags.set(73, bufData[73]);
 
                     bufData[73] &= 0xcf;
