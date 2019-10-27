@@ -141,12 +141,75 @@ export class MmOnline implements IPlugin {
         count = bufData.byteLength;
 
         // Detect Changes
-        for (i = 0; i < count; i++) {
-            if (bufData[i] === bufStorage[i]) continue;
-            bufData[i] |= bufStorage[i];
-            this.core.save.event_flags.set(i, bufData[i]);
-            this.ModLoader.logger.info('EVENT: ' + i);
-            needUpdate = true;
+        {
+            for (i = 0; i < count; i++) {
+                if (bufData[i] === bufStorage[i]) continue;
+
+                // Quick check to handle normal
+                if (i < 11 || (i > 11 && i < 73) || i > 83) {
+                    bufData[i] |= bufStorage[i];
+                    this.core.save.event_flags.set(i, bufData[i]);
+                    needUpdate = true;
+                    continue;
+                }
+
+                // Below only does large checks for a few values
+                // instead of every single loop.
+
+                // Handle for bomber kid bullshit
+                if (
+                    i === 11 || i === 76 || // Bomber Kids Caught
+                    i === 73 || i === 75 || // Bomber Kids Cutscenes
+                    i === 77 || i === 83 // Bomber Kids Cutscenes
+                ) continue;
+                
+                bufData[i] |= bufStorage[i];
+                this.core.save.event_flags.set(i, bufData[i]);
+                needUpdate = true;
+            }
+
+            // Bomber kid exclusion
+            {
+                if (bufData[73] !== bufStorage[73]) {
+                    bufData[75] |= bufStorage[73];
+                    this.core.save.event_flags.set(73, bufData[73]);
+
+                    bufData[73] &= 0xcf;
+                    bufStorage[73] &= 0xcf;
+                    if (bufData[73] !== bufStorage[73])
+                        needUpdate = true;
+                }
+
+                if (bufData[75] !== bufStorage[75]) {
+                    bufData[75] |= bufStorage[75];
+                    this.core.save.event_flags.set(75, bufData[75]);
+
+                    bufData[75] &= 0x9f;
+                    bufStorage[75] &= 0x9f;
+                    if (bufData[75] !== bufStorage[75])
+                        needUpdate = true;
+                }
+
+                if (bufData[77] !== bufStorage[77]) {
+                    bufData[77] |= bufStorage[77];
+                    this.core.save.event_flags.set(77, bufData[77]);
+
+                    bufData[77] &= 0xfd;
+                    bufStorage[77] &= 0xfd;
+                    if (bufData[77] !== bufStorage[77])
+                        needUpdate = true;
+                }
+                
+                if (bufData[83] !== bufStorage[83]) {
+                    bufData[83] |= bufStorage[83];
+                    this.core.save.event_flags.set(83, bufData[83]);
+
+                    bufData[83] &= 0xfb;
+                    bufStorage[83] &= 0xfb;
+                    if (bufData[83] !== bufStorage[83])
+                        needUpdate = true;
+                }
+            }
         }
 
         // Process Changes
@@ -251,7 +314,7 @@ export class MmOnline implements IPlugin {
         let needUpdate = false;
 
         if (count !== this.db.bank) needUpdate = true;
-        
+
         // Process Changes
         if (!needUpdate) return;
 
@@ -271,7 +334,7 @@ export class MmOnline implements IPlugin {
             status |= this.db.quest_status;
             needUpdate = true;
         }
-        
+
         // Process Changes
         if (!needUpdate) return;
 
@@ -308,7 +371,7 @@ export class MmOnline implements IPlugin {
         } else if (equips.shield > this.db.equips.shield) {
             needUpdate = true;
         }
-        
+
         val1 = equips.bomb_bag !== 255 ? equips.bomb_bag : -1;
         val2 = this.db.equips.bomb_bag !== 255 ? this.db.equips.bomb_bag : -1;
 
@@ -319,7 +382,7 @@ export class MmOnline implements IPlugin {
             equips.bomb_bag = this.db.equips.bomb_bag;
             needUpdate = true;
         }
-        
+
         val1 = equips.quiver !== 255 ? equips.quiver : -1;
         val2 = this.db.equips.quiver !== 255 ? this.db.equips.quiver : -1;
 
@@ -330,7 +393,7 @@ export class MmOnline implements IPlugin {
             equips.quiver = this.db.equips.quiver;
             needUpdate = true;
         }
-        
+
         // Process Changes
         if (!needUpdate) return;
 
@@ -517,7 +580,7 @@ export class MmOnline implements IPlugin {
         this.handle_game_flags(bufData!, bufStorage!);
         this.handle_owl_flags(bufData!, bufStorage!);
         this.handle_scene_data(bufData!, bufStorage!);
-        
+
         // Sync Misc
         this.handle_bank();
         this.handle_quest_status();
@@ -528,7 +591,8 @@ export class MmOnline implements IPlugin {
         this.handle_masks_flags(bufData!, bufStorage!);
 
         // Sync Specials
-        this.handle_clock();
+        if (this.curScene !== 0x08)
+            this.handle_clock();
     }
 
     @EventHandler(EventsClient.ON_INJECT_FINISHED)
@@ -749,12 +813,10 @@ export class MmOnline implements IPlugin {
             sDB.event_flags,
             sDB.items,
             sDB.masks,
+            sDB.clock,
             true
         );
 
-        this.ModLoader.serverSide.sendPacket(
-            new Net.SyncClock(packet.lobby, sDB.clock)
-        );
         this.ModLoader.serverSide.sendPacket(pData);
     }
 
@@ -988,7 +1050,7 @@ export class MmOnline implements IPlugin {
         } else if (val1 < val2) {
             equips.bomb_bag = packet.equips.bomb_bag;
             needUpdate = true;
-        }        
+        }
 
         val1 = equips.quiver !== 255 ? equips.quiver : -1;
         val2 = packet.equips.quiver !== 255 ? packet.equips.quiver : -1;
@@ -999,7 +1061,7 @@ export class MmOnline implements IPlugin {
             equips.quiver = packet.equips.quiver;
             needUpdate = true;
         }
-        
+
         if (!needUpdate) return;
 
         sDB.equips = equips;
@@ -1203,6 +1265,9 @@ export class MmOnline implements IPlugin {
         this.core.save.mask_slots.array = this.db.masks;
 
         this.core.runtime.scene_flags.set_all(Buffer.alloc(0x14));
+
+        this.db.clock = packet.clock;
+        this.db.clock_need_update = true;
 
         if (!this.db.time_reset) this.core.runtime.goto_scene(0x0000D800);
     }
@@ -1425,7 +1490,7 @@ export class MmOnline implements IPlugin {
             equips.shield = packet.equips.shield;
             needUpdate = true;
         }
-        
+
         val1 = equips.bomb_bag !== 255 ? equips.bomb_bag : -1;
         val2 = packet.equips.bomb_bag !== 255 ? packet.equips.bomb_bag : -1;
 
@@ -1435,7 +1500,7 @@ export class MmOnline implements IPlugin {
             equips.bomb_bag = packet.equips.bomb_bag;
             needUpdate = true;
         }
-        
+
         val1 = equips.quiver !== 255 ? equips.quiver : -1;
         val2 = packet.equips.quiver !== 255 ? packet.equips.quiver : -1;
 
@@ -1445,7 +1510,7 @@ export class MmOnline implements IPlugin {
             equips.quiver = packet.equips.quiver;
             needUpdate = true;
         }
-        
+
         if (!needUpdate) return;
 
         this.db.equips = equips;

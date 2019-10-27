@@ -97,12 +97,14 @@ export class SyncTimeReset extends Packet {
     event_flags: Buffer;
     items: Buffer;
     masks: Buffer;
+    clock: DB.ClockData;
     constructor(
         lobby: string,
         cycle_flags: Buffer,
         event_flags: Buffer,
         items: Buffer,
         masks: Buffer,
+        clock: DB.ClockData,
         persist: boolean
     ) {
         super('SyncTimeReset', 'MmOnline', lobby, true);
@@ -110,6 +112,7 @@ export class SyncTimeReset extends Packet {
         this.event_flags = event_flags;
         this.items = items;
         this.masks = masks;
+        this.clock = clock;
     }
 }
 
