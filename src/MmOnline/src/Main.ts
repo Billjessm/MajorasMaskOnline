@@ -15,7 +15,7 @@ import {
 } from 'modloader64_api/NetworkHandler';
 import { InjectCore } from 'modloader64_api/CoreInjection';
 import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
-import * as API from 'modloader64_api/MM/Imports';
+import * as API from 'MajorasMask/API/Imports';
 import * as Net from './network/Imports';
 
 export class MmOnline implements IPlugin {

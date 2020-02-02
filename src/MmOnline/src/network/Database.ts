@@ -1,4 +1,4 @@
-import * as API from 'modloader64_api/MM/Imports';
+import * as API from 'MajorasMask/API/Imports';
 
 export class Database {
     cycle_flags: Buffer = Buffer.alloc(0x0960);
