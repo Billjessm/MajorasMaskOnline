@@ -39,6 +39,9 @@ export class MmOnline implements IPlugin {
         this.db.event_need_update = true;
 
         this.db.bank_need_update = true;
+        this.db.health_need_update = true;
+        this.db.trade_need_update = true;
+        this.db.bottles_need_update = true;
     }
 
     check_db_instance(db: Net.Database, scene: number) {
@@ -58,6 +61,13 @@ export class MmOnline implements IPlugin {
 
         // Only progress if we havent invoked a time reset
         if (this.db.time_reset) return;
+
+        // Time sync feature only -- Only fix inventory
+        if (this.db.timeless) {
+            this.db.items = this.core.save.item_slots.array;
+            return;
+        }
+
         this.db.time_reset = true;
 
         this.ModLoader.clientSide.sendPacket(
@@ -92,10 +102,16 @@ export class MmOnline implements IPlugin {
 
     handle_cycle_flags(bufData: Buffer, bufStorage: Buffer) {
         if (this.db.cycle_need_update) {
-            this.core.save.cycle_flags.set_all(this.db.cycle_flags);
+            // Time sync feature only
+            if (!this.db.timeless)
+                this.core.save.cycle_flags.set_all(this.db.cycle_flags);
+
             this.db.cycle_need_update = false;
             return;
         }
+
+        // Time sync feature only
+        if (this.db.timeless) return;
 
         // Initializers
         let pData: Net.SyncBuffered;
@@ -125,10 +141,16 @@ export class MmOnline implements IPlugin {
 
     handle_event_flags(bufData: Buffer, bufStorage: Buffer) {
         if (this.db.event_need_update) {
-            this.core.save.event_flags.set_all(this.db.event_flags);
+            // Time sync feature only
+            if (!this.db.timeless)
+                this.core.save.event_flags.set_all(this.db.event_flags);
+
             this.db.event_need_update = false;
             return;
         }
+
+        // Time sync feature only
+        if (this.db.timeless) return;
 
         // Initializers
         let pData: Net.SyncBuffered;
@@ -162,7 +184,7 @@ export class MmOnline implements IPlugin {
                     i === 73 || i === 75 || // Bomber Kids Cutscenes
                     i === 77 || i === 83 // Bomber Kids Cutscenes
                 ) continue;
-                
+
                 bufData[i] |= bufStorage[i];
                 this.core.save.event_flags.set(i, bufData[i]);
                 needUpdate = true;
@@ -199,7 +221,7 @@ export class MmOnline implements IPlugin {
                     if (bufData[77] !== bufStorage[77])
                         needUpdate = true;
                 }
-                
+
                 if (bufData[83] !== bufStorage[83]) {
                     bufData[83] |= bufStorage[83];
                     this.core.save.event_flags.set(83, bufData[83]);
@@ -221,6 +243,9 @@ export class MmOnline implements IPlugin {
     }
 
     handle_game_flags(bufData: Buffer, bufStorage: Buffer) {
+        // Time sync feature only
+        if (this.db.timeless) return;
+
         // Initializers
         let pData: Net.SyncBuffered;
         let i: number;
@@ -274,7 +299,43 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
+    handle_intro_flag(scene: number) {
+        // Initializers
+        let pData: Net.SyncNumbered;
+        let stateData: number;
+        let stateStorage: number
+        let needUpdate = false;
+
+        stateData = this.core.save.intro_flag;
+        stateStorage = this.db.intro_state;
+
+        if (stateData < stateStorage) {
+            // Make sure we are on cutscene map
+            if (scene !== 0x08) return;
+            if (this.db.intro_buffer < 20) {
+                this.db.intro_buffer += 1;
+                return;
+            }
+
+            this.core.save.intro_flag = stateStorage;
+            this.core.runtime.goto_scene(0x0000D800);
+            return;
+        } else if (stateData > stateStorage) {
+            this.db.intro_state = stateData;
+            needUpdate = true;
+        }
+
+        // Process Changes
+        if (!needUpdate) return;
+
+        pData = new Net.SyncNumbered(this.ModLoader.clientLobby, 'SyncIntroState', stateData, false);
+        this.ModLoader.clientSide.sendPacket(pData);
+    }
+
     handle_scene_data(bufData: Buffer, bufStorage: Buffer) {
+        // Time sync feature only
+        if (this.db.timeless) return;
+
         // Initializers
         let pData: Net.SyncSceneData;
         let i: number;
@@ -346,7 +407,28 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_equip_flags() {
+    handle_magic() {
+        // Initializers
+        let barData = this.core.save.magic.bar;
+        let barStorage = this.db.magic.bar;
+        let needUpdate = false;
+
+        if (barData < barStorage) {
+            this.core.save.magic.bar = barStorage;
+        } else if (barData > barStorage) {
+            this.db.magic.bar = barData;
+            needUpdate = true;
+        }
+
+        // Process Changes
+        if (!needUpdate) return;
+
+        // Send changes to server
+        let pData = new Net.SyncMagic(this.ModLoader.clientLobby, this.db.magic, false);
+        this.ModLoader.clientSide.sendPacket(pData);
+    }
+
+    handle_equip_slots() {
         // Initializers
         let val1: number;
         let val2: number;
@@ -404,44 +486,145 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_item_flags(bufData: Buffer, bufStorage: Buffer) {
+    handle_item_slots(bufData: Buffer, bufStorage: Buffer) {
+
+        // Time sync version
+        if (!this.db.timeless) {
+            if (this.db.bottles_need_update) {
+                bufData = this.core.save.item_slots.array;
+                bufData[0x12] = this.db.items[0x12];
+                bufData[0x13] = this.db.items[0x13];
+                bufData[0x14] = this.db.items[0x14];
+                bufData[0x15] = this.db.items[0x15];
+                bufData[0x16] = this.db.items[0x16];
+                bufData[0x17] = this.db.items[0x17];
+                this.core.save.item_slots.array = bufData;
+                this.db.bottles_need_update = false;
+            }
+            if (this.db.trade_need_update) {
+                bufData = this.core.save.item_slots.array;
+                bufData[0x05] = this.db.items[0x05];
+                bufData[0x0b] = this.db.items[0x0b];
+                bufData[0x11] = this.db.items[0x11];
+                this.core.save.item_slots.array = bufData;
+                this.db.trade_need_update = false;
+            }
+        }
+        // Timeless version
+        else {
+            if (this.db.bottles_need_update) {
+                bufData = this.core.save.item_slots.array;
+
+                // If a new bottle was collected that we dont have give empty bottles
+                if (bufData[0x12] === 255 && this.db.items[0x12] !== 255)
+                    bufData[0x12] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x13] === 255 && this.db.items[0x13] !== 255)
+                    bufData[0x13] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x14] === 255 && this.db.items[0x14] !== 255)
+                    bufData[0x14] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x15] === 255 && this.db.items[0x15] !== 255)
+                    bufData[0x15] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x16] === 255 && this.db.items[0x16] !== 255)
+                    bufData[0x16] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x17] === 255 && this.db.items[0x17] !== 255)
+                    bufData[0x17] = API.ItemType.BOTTLE_EMPTY;
+
+                this.core.save.item_slots.array = bufData;
+                this.db.bottles_need_update = false;
+            }
+        }
+
         // Initializers
         let pData: Net.SyncBuffered;
         let i: number;
+        let n: number;
+        let x: number;
+        let y: number;
         let val1: number;
         let val2: number;
-        let count: number;
         let needUpdate = false;
 
         bufData = this.core.save.item_slots.array;
         bufStorage = this.db.items;
-        count = bufData.byteLength;
         needUpdate = false;
 
-        for (i = 0; i < count; i++) {
-            val1 = bufData[i] !== 255 ? bufData[i] : -1;
-            val2 = bufStorage[i] !== 255 ? bufStorage[i] : -1;
+        // Normal items with upgrades
+        for (i = 0; i < 3; i++) {
+            x = i * 6;
+            for (n = 0; n < 5; n++) {
+                y = x + n;
+                val1 = bufData[y] !== 255 ? bufData[y] : -1;
+                val2 = bufStorage[y] !== 255 ? bufStorage[y] : -1;
 
-            if (val1 > val2) {
+                if (val1 > val2) {
+                    bufStorage[y] = bufData[y];
+                    needUpdate = true;
+                } else if (val1 < val2) {
+                    needUpdate = true;
+                }
+            }
+        }
+
+        // Time sync version
+        if (!this.db.timeless) {
+            // Trade Items
+            if (bufData[0x05] !== bufStorage[0x05]) {
+                bufStorage[0x05] = bufData[0x05];
                 needUpdate = true;
-            } else if (val1 < val2) {
-                bufData[i] = bufStorage[i];
+            }
+            if (bufData[0x0b] !== bufStorage[0x0b]) {
+                bufStorage[0x0b] = bufData[0x0b];
                 needUpdate = true;
+            }
+            if (bufData[0x11] !== bufStorage[0x11]) {
+                bufStorage[0x11] = bufData[0x11];
+                needUpdate = true;
+            }
+
+            // Bottles
+            for (i = 0x12; i < 0x18; i++) {
+                val1 = bufData[i] !== 255 ? bufData[i] : -1;
+                val2 = bufStorage[i] !== 255 ? bufStorage[i] : -1;
+
+                if (val1 !== val2 && val1 > -1) {
+                    bufStorage[i] = bufData[i];
+                    needUpdate = true;
+                }
+            }
+        }
+        // Timeless version
+        else {
+            // Trade Items -- just make sure our database
+            // has these values so they dont get nuked on
+            // item updates.
+            bufStorage[0x05] = bufData[0x05];
+            bufStorage[0x0b] = bufData[0x0b];
+            bufStorage[0x11] = bufData[0x11];
+
+            // Bottles
+            for (i = 0x12; i < 0x18; i++) {
+                val1 = bufData[i] !== 255 ? bufData[i] : -1;
+                val2 = bufStorage[i] !== 255 ? bufStorage[i] : -1;
+
+                if (val1 !== val2 && val1 > -1) {
+                    bufStorage[i] = bufData[i];
+                    needUpdate = true;
+                }
             }
         }
 
         // Process Changes
         if (!needUpdate) return;
 
-        this.core.save.item_slots.array = bufData;
-        this.db.items = bufData;
+        this.core.save.item_slots.array = bufStorage;
+        this.db.items = bufStorage;
 
         // Send changes to server
-        pData = new Net.SyncBuffered(this.ModLoader.clientLobby, 'SyncItemSlots', bufData, false);
+        pData = new Net.SyncBuffered(this.ModLoader.clientLobby, 'SyncItemSlots', bufStorage, false);
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_masks_flags(bufData: Buffer, bufStorage: Buffer) {
+    handle_masks_slots(bufData: Buffer, bufStorage: Buffer) {
         // Initializers
         let pData: Net.SyncBuffered;
         let i: number;
@@ -480,14 +663,20 @@ export class MmOnline implements IPlugin {
 
     handle_clock() {
         if (this.db.clock_need_update) {
-            this.core.save.clock.current_day = this.db.clock.current_day;
-            this.core.save.clock.elapsed = this.db.clock.elapsed;
-            this.core.save.clock.is_night = this.db.clock.is_night;
-            this.core.save.clock.speed = this.db.clock.speed;
-            this.core.save.clock.time = this.db.clock.time;
+            // Time sync feature only
+            if (!this.db.timeless) {
+                this.core.save.clock.current_day = this.db.clock.current_day;
+                this.core.save.clock.elapsed = this.db.clock.elapsed;
+                this.core.save.clock.is_night = this.db.clock.is_night;
+                this.core.save.clock.speed = this.db.clock.speed;
+                this.core.save.clock.time = this.db.clock.time;
+            }
             this.db.clock_need_update = false;
             return;
         }
+
+        // Time sync feature only
+        if (this.db.timeless) return;
 
         if (!this.db.clock_init) return;
 
@@ -562,6 +751,9 @@ export class MmOnline implements IPlugin {
         let bufData: Buffer;
         let scene: number = this.core.runtime.get_current_scene();
 
+        // Intro skip
+        this.handle_intro_flag(scene);
+
         // Day transition handler
         if (this.db.clock.is_started &&
             !this.db.clock_init) this.reset_session(true);
@@ -584,11 +776,12 @@ export class MmOnline implements IPlugin {
         // Sync Misc
         this.handle_bank();
         this.handle_quest_status();
+        this.handle_magic();
 
         // Sync Start Menu Items
-        this.handle_equip_flags();
-        this.handle_item_flags(bufData!, bufStorage!);
-        this.handle_masks_flags(bufData!, bufStorage!);
+        this.handle_equip_slots();
+        this.handle_item_slots(bufData!, bufStorage!);
+        this.handle_masks_slots(bufData!, bufStorage!);
 
         // Sync Specials
         if (this.curScene !== 0x08)
@@ -609,25 +802,13 @@ export class MmOnline implements IPlugin {
 
     @EventHandler(EventsClient.CONFIGURE_LOBBY)
     onLobbySetup(lobby: LobbyData): void {
-        // Can set configurable settings for a host of
-        // lobby to set for a play session. EX: combination with
-        // below On_Lobby_Join event.
-
-        // lobby.data['MmOnline:data1_syncing'] = true;
-        // lobby.data['MmOnline:data2_syncing'] = true;
+        lobby.data['MmOnline:timeless_mode'] = false;
     }
 
     @EventHandler(EventsClient.ON_LOBBY_JOIN)
     onClient_LobbyJoin(lobby: LobbyData): void {
         this.db = new Net.DatabaseClient();
-
-        // Can configure LobbyData here -- Allow hostable settings
-        // and lobby based triggers. EX: combination with above
-        // Configure_Lobby event.
-
-        // this.LobbyConfig.data1_syncing = lobby.data['MmOnline:data1_syncing'];
-        // this.LobbyConfig.data2_syncing = lobby.data['MmOnline:data2_syncing'];
-        // this.ModLoader.logger.info('OotOnline settings inherited from lobby.');
+        this.db.timeless = lobby.data['MmOnline:timeless_mode'];
 
         // Send our storage request to the server
         let pData = new Packet('Request_Storage', 'MmOnline', this.ModLoader.clientLobby, false);
@@ -680,9 +861,11 @@ export class MmOnline implements IPlugin {
             sDB.event_flags,
             sDB.game_flags,
             sDB.owl_flags,
+            sDB.intro_state,
             sDB.scene_data,
             sDB.bank,
             sDB.quest_status,
+            sDB.magic,
             sDB.equips,
             sDB.items,
             sDB.masks,
@@ -936,6 +1119,26 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Updated: {Owl Flags}');
     }
 
+    @ServerNetworkHandler('SyncIntroState')
+    onServer_SyncIntroState(packet: Net.SyncNumbered) {
+        this.ModLoader.logger.info('[Server] Received: {Intro State Flags}');
+
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let data: number = sDB.intro_state;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        sDB.game_active = true;
+
+        if (data >= packet.value) return;
+        sDB.intro_state = packet.value;
+
+        let pData = new Net.SyncNumbered(packet.lobby, 'SyncIntroState', packet.value, true);
+        this.ModLoader.serverSide.sendPacket(pData);
+
+        this.ModLoader.logger.info('[Server] Updated: {Intro State Flags}');
+    }
+
     @ServerNetworkHandler('SyncSceneData')
     onServer_SyncSceneData(packet: Net.SyncSceneData) {
         this.ModLoader.logger.info('[Server] Received: {Scene Data}');
@@ -1018,6 +1221,34 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Updated: {Quest Status}');
     }
 
+    @ServerNetworkHandler('SyncMagic')
+    onServer_SyncMagic(packet: Net.SyncMagic): void {
+        this.ModLoader.logger.info('[Server] Received: {Magic}');
+
+        // Initializers
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let magic: Net.MagicData = sDB.magic;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        sDB.game_active = true;
+
+        if (magic.bar < packet.magic.bar) {
+            magic.bar = packet.magic.bar;
+            needUpdate = true;
+        }
+
+        if (!needUpdate) return;
+
+        sDB.magic = magic;
+
+        // Send changes to clients
+        let pData = new Net.SyncMagic(packet.lobby, magic, true);
+        this.ModLoader.serverSide.sendPacket(pData);
+
+        this.ModLoader.logger.info('[Server] Updated: {Magic}');
+    }
+
     @ServerNetworkHandler('SyncEquipSlots')
     onServer_SyncEquipSlots(packet: Net.SyncEquipSlots): void {
         this.ModLoader.logger.info('[Server] Received: {Equip Slots}');
@@ -1080,20 +1311,52 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
         let data: Buffer = sDB.items;
-        let count: number = data.byteLength;
         let val1 = 0;
         let val2 = 0;
         let i = 0;
+        let n = 0;
+        let x = 0;
+        let y = 0;
         let needUpdate = false;
 
         // Ensure game_active check completed        
         sDB.game_active = true;
 
-        for (i = 0; i < count; i++) {
+        // Normal items with upgrades
+        for (i = 0; i < 3; i++) {
+            x = i * 6;
+            for (n = 0; n < 5; n++) {
+                y = x + n;
+                val1 = data[y] !== 255 ? data[y] : -1;
+                val2 = packet.value[y] !== 255 ? packet.value[y] : -1;
+
+                if (val1 < val2) {
+                    data[y] = packet.value[y];
+                    needUpdate = true;
+                }
+            }
+        }
+
+        // Trade Items
+        if (data[0x05] !== packet.value[0x05]) {
+            data[0x05] = packet.value[0x05];
+            needUpdate = true;
+        }
+        if (data[0x0b] !== packet.value[0x0b]) {
+            data[0x0b] = packet.value[0x0b];
+            needUpdate = true;
+        }
+        if (data[0x11] !== packet.value[0x11]) {
+            data[0x11] = packet.value[0x11];
+            needUpdate = true;
+        }
+
+        // Bottles
+        for (i = 0x12; i < 0x18; i++) {
             val1 = data[i] !== 255 ? data[i] : -1;
             val2 = packet.value[i] !== 255 ? packet.value[i] : -1;
 
-            if (val1 < val2) {
+            if (val1 !== val2 && val2 > -1) {
                 data[i] = packet.value[i];
                 needUpdate = true;
             }
@@ -1227,9 +1490,11 @@ export class MmOnline implements IPlugin {
         this.db.event_flags = packet.event_flags;
         this.db.game_flags = packet.game_flags;
         this.db.owl_flags = packet.owl_flags;
+        this.db.intro_state = packet.intro_state;
         this.db.scene_data = packet.scene_data;
         this.db.bank = packet.bank;
         this.db.quest_status = packet.quest_status;
+        this.db.magic = packet.magic;
         this.db.equips = packet.equips;
         this.db.items = packet.items;
         this.db.masks = packet.masks;
@@ -1243,6 +1508,9 @@ export class MmOnline implements IPlugin {
 
         // Should not invoke this function if not in game yet!
         if (!this.core.isPlaying()) return;
+
+        // Only send packets if syncing time
+        if (this.db.timeless) return;
 
         // Fix to game
         this.core.save.cycle_flags.set_all(packet.cycle_flags);
@@ -1277,15 +1545,18 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Cycle Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.time_reset) return;
+        if (this.db.time_reset && !this.db.timeless) return;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Only send packets if syncing time
+        if (this.db.timeless) return;
 
         let data: Buffer = this.db.cycle_flags;
         let count: number = data.byteLength;
         let i = 0;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1305,15 +1576,18 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Event Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.time_reset) return;
+        if (this.db.time_reset && !this.db.timeless) return;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Only send packets if syncing time
+        if (this.db.timeless) return;
 
         let data: Buffer = this.db.event_flags;
         let count: number = data.byteLength;
         let i = 0;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1333,15 +1607,18 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Received: {Game Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.time_reset) return;
+        if (this.db.time_reset && !this.db.timeless) return;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Only send packets if syncing time
+        if (this.db.timeless) return;
 
         let data: Buffer = this.db.game_flags;
         let count: number = data.byteLength;
         let i = 0;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1363,13 +1640,13 @@ export class MmOnline implements IPlugin {
         // Do not set new data until finished reset
         if (this.db.time_reset) return;
 
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
         let data: Buffer = this.db.owl_flags;
         let count: number = data.byteLength;
         let i = 0;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1384,12 +1661,32 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Updated: {Owl Flags}');
     }
 
+    @NetworkHandler('SyncIntroState')
+    onClient_SyncIntroState(packet: Net.SyncNumbered) {
+        this.ModLoader.logger.info('[Client] Received: {Intro State Flags}');
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        let data: number = this.db.intro_state;
+        if (data >= packet.value) return;
+        this.db.intro_state = packet.value;
+
+        this.ModLoader.logger.info('[Client] Updated: {Intro State Flags}');
+    }
+
     @NetworkHandler('SyncSceneData')
     onClient_SyncSceneData(packet: Net.SyncSceneData) {
         this.ModLoader.logger.info('[Client] Received: {Scene Flags}');
 
         // Do not set new data until finished reset
-        if (this.db.time_reset) return;
+        if (this.db.time_reset && !this.db.timeless) return;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Only send packets if syncing time
+        if (this.db.timeless) return;
 
         // Ensure we have this scene data!
         this.check_db_instance(this.db, packet.scene);
@@ -1398,9 +1695,6 @@ export class MmOnline implements IPlugin {
         let count: number = data.byteLength;
         let i = 0;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.flags[i]) continue;
@@ -1422,12 +1716,12 @@ export class MmOnline implements IPlugin {
         // Do not set new data until finished reset
         if (this.db.time_reset) return;
 
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
         // Initializers
         let count: number = this.db.bank;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         if (count !== packet.value) needUpdate = true;
 
@@ -1446,12 +1740,12 @@ export class MmOnline implements IPlugin {
         // Do not set new data until finished reset
         if (this.db.time_reset) return;
 
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
         // Initializers
         let status: number = this.db.quest_status;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         if (status !== packet.value) {
             status |= packet.value;
@@ -1465,6 +1759,32 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Updated: {Quest Status}');
     }
 
+    @NetworkHandler('SyncMagic')
+    onClient_SyncMagic(packet: Net.SyncMagic): void {
+        this.ModLoader.logger.info('[Client] Received: {Magic}');
+
+        // Do not set new data until finished reset
+        if (this.db.time_reset) return;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Initializers
+        let magic: Net.MagicData = this.db.magic;
+        let needUpdate = false;
+
+        if (magic.bar < packet.magic.bar) {
+            magic.bar = packet.magic.bar;
+            needUpdate = true;
+        }
+
+        if (!needUpdate) return;
+
+        this.db.magic = magic;
+
+        this.ModLoader.logger.info('[Client] Updated: {Magic}');
+    }
+
     @NetworkHandler('SyncEquipSlots')
     onClient_SyncEquipSlots(packet: Net.SyncEquipSlots): void {
         this.ModLoader.logger.info('[Client] Received: {Equip Slots}');
@@ -1472,14 +1792,14 @@ export class MmOnline implements IPlugin {
         // Do not set new data until finished reset
         if (this.db.time_reset) return;
 
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
         // Initializers
         let equips: Net.EquipData = this.db.equips;
         let val1: number;
         let val2: number;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         if (equips.sword < packet.equips.sword) {
             equips.sword = packet.equips.sword;
@@ -1525,25 +1845,80 @@ export class MmOnline implements IPlugin {
         // Do not set new data until finished reset
         if (this.db.time_reset) return;
 
-        // Initializers
-        let data: Buffer = this.db.items;
-        let count: number = data.byteLength;
-        let val1 = 0;
-        let val2 = 0;
-        let i = 0;
-        let needUpdate = false;
-
         // Ensure game_active check completed        
         this.db.game_active = true;
 
-        for (i = 0; i < count; i++) {
-            val1 = data[i] !== 255 ? data[i] : -1;
-            val2 = packet.value[i] !== 255 ? packet.value[i] : -1;
+        // Initializers
+        let data: Buffer = this.db.items;
+        let val1 = 0;
+        let val2 = 0;
+        let i = 0;
+        let n = 0;
+        let x = 0;
+        let y = 0;
+        let needUpdate = false;
 
-            if (val1 < val2) {
-                data[i] = packet.value[i];
-                needUpdate = true;
+        // Normal items with upgrades
+        for (i = 0; i < 3; i++) {
+            x = i * 6;
+            for (n = 0; n < 5; n++) {
+                y = x + n;
+                val1 = data[y] !== 255 ? data[y] : -1;
+                val2 = packet.value[y] !== 255 ? packet.value[y] : -1;
+
+                if (val1 < val2) {
+                    data[y] = packet.value[y];
+                    needUpdate = true;
+                }
             }
+        }
+
+        // Time sync version
+        if (!this.db.timeless) {
+            // Trade Items
+            if (data[0x05] !== packet.value[0x05]) {
+                data[0x05] = packet.value[0x05];
+                needUpdate = true;
+                this.db.trade_need_update = true;
+            }
+            if (data[0x0b] !== packet.value[0x0b]) {
+                data[0x0b] = packet.value[0x0b];
+                needUpdate = true;
+                this.db.trade_need_update = true;
+            }
+            if (data[0x11] !== packet.value[0x11]) {
+                data[0x11] = packet.value[0x11];
+                needUpdate = true;
+                this.db.trade_need_update = true;
+            }
+
+            // Bottles
+            for (i = 0x12; i < 0x18; i++) {
+                val1 = data[i] !== 255 ? data[i] : -1;
+                val2 = packet.value[i] !== 255 ? packet.value[i] : -1;
+
+                if (val1 !== val2 && val2 > -1) {
+                    data[i] = packet.value[i];
+                    needUpdate = true;
+                    this.db.bottles_need_update = true;
+                }
+            }
+        }
+        // Timeless version
+        else {
+            // If a new bottle was collected that we dont have give empty bottles
+            if (data[0x12] === 255 && packet.value[0x12] !== 255)
+                data[0x12] = API.ItemType.BOTTLE_EMPTY;
+            if (data[0x13] === 255 && packet.value[0x13] !== 255)
+                data[0x13] = API.ItemType.BOTTLE_EMPTY;
+            if (data[0x14] === 255 && packet.value[0x14] !== 255)
+                data[0x14] = API.ItemType.BOTTLE_EMPTY;
+            if (data[0x15] === 255 && packet.value[0x15] !== 255)
+                data[0x15] = API.ItemType.BOTTLE_EMPTY;
+            if (data[0x16] === 255 && packet.value[0x16] !== 255)
+                data[0x16] = API.ItemType.BOTTLE_EMPTY;
+            if (data[0x17] === 255 && packet.value[0x17] !== 255)
+                data[0x17] = API.ItemType.BOTTLE_EMPTY;
         }
 
         if (!needUpdate) return;
@@ -1560,6 +1935,9 @@ export class MmOnline implements IPlugin {
         // Do not set new data until finished reset
         if (this.db.time_reset) return;
 
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
         // Initializers
         let data: Buffer = this.db.masks;
         let count: number = data.byteLength;
@@ -1567,9 +1945,6 @@ export class MmOnline implements IPlugin {
         let val2 = 0;
         let i = 0;
         let needUpdate = false;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         for (i = 0; i < count; i++) {
             val1 = data[i] !== 255 ? data[i] : -1;
@@ -1591,6 +1966,15 @@ export class MmOnline implements IPlugin {
     @NetworkHandler('SyncClock')
     onClient_SyncClock(packet: Net.SyncClock): void {
         this.ModLoader.logger.info('[Client] Received: {Clock}');
+
+        // Do not set new data until finished reset
+        if (this.db.time_reset && !this.db.timeless) return;
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Only send packets if syncing time
+        if (this.db.timeless) return;
 
         // Initializers
         let timeData = Math.floor(this.db.clock.time / 0x1000);
@@ -1616,9 +2000,6 @@ export class MmOnline implements IPlugin {
 
         this.db.clock = packet.clock;
         this.db.clock_need_update = true;
-
-        // Ensure game_active check completed        
-        this.db.game_active = true;
 
         this.ModLoader.logger.info('[Client] Updated: {Clock}');
     }

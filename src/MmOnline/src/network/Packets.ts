@@ -6,9 +6,11 @@ export class SyncStorage extends Packet {
     event_flags: Buffer;
     game_flags: Buffer;
     owl_flags: Buffer;
+    intro_state: number;
     scene_data: any;
     bank: number;
     quest_status: number;
+    magic: DB.MagicData;
     equips: DB.EquipData;
     items: Buffer;
     masks: Buffer;
@@ -21,9 +23,11 @@ export class SyncStorage extends Packet {
         event_flags: Buffer,
         game_flags: Buffer,
         owl_flags: Buffer,
+        intro_state: number,
         scene_data: any,
         bank: number,
         quest_status: number,
+        magic: DB.MagicData,
         equips: DB.EquipData,
         items: Buffer,
         masks: Buffer,
@@ -35,9 +39,11 @@ export class SyncStorage extends Packet {
         this.event_flags = event_flags;
         this.game_flags = game_flags;
         this.owl_flags = owl_flags;
+        this.intro_state = intro_state;
         this.scene_data = scene_data;
         this.bank = bank;
         this.quest_status = quest_status;
+        this.magic = magic;
         this.equips = equips;
         this.items = items;
         this.masks = masks;
@@ -80,10 +86,22 @@ export class SyncClock extends Packet {
     }
 }
 
-export class SyncEquipSlots extends Packet {
-    equips: DB.EquipData
+export class SyncMagic extends Packet {
+    magic: DB.MagicData;
     constructor(
-        lobby: string, 
+        lobby: string,
+        magic: DB.MagicData,
+        persist: boolean
+    ) {
+        super('SyncMagic', "MmOnline", lobby, persist);
+        this.magic = magic;
+    }
+}
+
+export class SyncEquipSlots extends Packet {
+    equips: DB.EquipData;
+    constructor(
+        lobby: string,
         equips: DB.EquipData,
         persist: boolean
     ) {
