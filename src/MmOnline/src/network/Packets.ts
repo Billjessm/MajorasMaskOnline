@@ -10,11 +10,13 @@ export class SyncStorage extends Packet {
     scene_data: any;
     bank: number;
     quest_status: number;
+    health: DB.HealthData;
     magic: DB.MagicData;
     equips: DB.EquipData;
     items: Buffer;
     masks: Buffer;
     clock: DB.ClockData;
+    map: DB.MapData;
     game_active: boolean;
 
     constructor(
@@ -27,11 +29,13 @@ export class SyncStorage extends Packet {
         scene_data: any,
         bank: number,
         quest_status: number,
+        health: DB.HealthData,
         magic: DB.MagicData,
         equips: DB.EquipData,
         items: Buffer,
         masks: Buffer,
         clock: DB.ClockData,
+        map: DB.MapData,
         game_active: boolean
     ) {
         super('SyncStorage', 'MmOnline', lobby, false);
@@ -43,18 +47,20 @@ export class SyncStorage extends Packet {
         this.scene_data = scene_data;
         this.bank = bank;
         this.quest_status = quest_status;
+        this.health = health;
         this.magic = magic;
         this.equips = equips;
         this.items = items;
         this.masks = masks;
         this.clock = clock;
+        this.map = map;
         this.game_active = game_active;
     }
 }
 
 export class SyncConfig extends Packet {
     timeless: boolean;
-    
+
     constructor(
         lobby: string,
         timeless: boolean,
@@ -99,15 +105,39 @@ export class SyncClock extends Packet {
     }
 }
 
-export class SyncMagic extends Packet {
-    magic: DB.MagicData;
+export class SyncMap extends Packet {
+    visible: number;
+    visited: number;
+    constructor(lobby: string, visible: number, visited: number, persist: boolean) {
+        super('SyncMap', 'MmOnline', lobby, persist);
+        this.visible = visible;
+        this.visited = visited;
+    }
+}
+
+export class SyncHealth extends Packet {
+    containers: number;
+    double_defense: number;
+    pieces: number;
     constructor(
         lobby: string,
-        magic: DB.MagicData,
+        containers: number,
+        double_defense: number,
+        pieces: number,
         persist: boolean
     ) {
+        super('SyncHealth', "MmOnline", lobby, persist);
+        this.containers = containers;
+        this.double_defense = double_defense;
+        this.pieces = pieces;
+    }
+}
+
+export class SyncMagic extends Packet {
+    bar: number;
+    constructor(lobby: string, bar: number, persist: boolean) {
         super('SyncMagic', "MmOnline", lobby, persist);
-        this.magic = magic;
+        this.bar = bar;
     }
 }
 
@@ -124,25 +154,19 @@ export class SyncEquipSlots extends Packet {
 }
 
 export class SyncTimeReset extends Packet {
-    cycle_flags: Buffer;
-    event_flags: Buffer;
-    items: Buffer;
-    masks: Buffer;
+    cycle: Buffer;
+    events: Buffer;
     clock: DB.ClockData;
     constructor(
         lobby: string,
-        cycle_flags: Buffer,
-        event_flags: Buffer,
-        items: Buffer,
-        masks: Buffer,
+        cycle: Buffer,
+        events: Buffer,
         clock: DB.ClockData,
         persist: boolean
     ) {
         super('SyncTimeReset', 'MmOnline', lobby, true);
-        this.cycle_flags = cycle_flags;
-        this.event_flags = event_flags;
-        this.items = items;
-        this.masks = masks;
+        this.cycle = cycle;
+        this.events = events;
         this.clock = clock;
     }
 }

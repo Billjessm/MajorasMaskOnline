@@ -25,8 +25,8 @@ export class SaveContext extends API.BaseObj implements API.ISaveContext {
   private double_hearts = 0x1ef743; //set to 20 by the game
 
   private pictograph_special = 0x1f04ea; //01 = tingle, 04 = deku king, 0A = pirate
-  private map_visited = 0x1f05cc; //Selectable Map dots
-  private map_visible = 0x1f05d0; //Visible Map terrain
+  private map_visited_addr = 0x1f05cc; //Selectable Map dots
+  private map_visible_addr = 0x1f05d0; //Visible Map terrain
   private has_scarecrow_song = 0x1f05d4; //Scarecrow song flag
   private scarecrow_song = 0x1f05d6; //Scarecrow's Song
   private bomber_code = 0x1f066b; //Bomber's code
@@ -129,13 +129,18 @@ export class SaveContext extends API.BaseObj implements API.ISaveContext {
       this.emulator.rdramWrite32(this.owl_id_addr, value);
   }
 
-  get have_tatl(): number {
-      return this.emulator.rdramRead32(this.have_tatl_addr);
+  get have_tatl(): Boolean {
+      return !!this.emulator.rdramRead32(this.have_tatl_addr);
   }
-  set have_tatl(value: number) {
-      this.emulator.rdramWrite32(this.have_tatl_addr, value);
+  set have_tatl(value: Boolean) {
+      this.emulator.rdramWrite32(this.have_tatl_addr, +value);
   }
-
+  get map_visible(): number {
+    return this.emulator.rdramRead32(this.map_visible_addr);
+  }
+  get map_visited(): number {
+    return this.emulator.rdramRead32(this.map_visited_addr);
+  }
   get player_name(): number {
       return this.emulator.rdramRead32(this.player_name_addr);
   }

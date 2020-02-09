@@ -109,6 +109,8 @@ export interface ISaveContext {
   magic: IMagic;
   skultulla_house: ISkultullaHouse;
 
+  map_visible: number;
+  map_visited: number;
   bank: number;
   current_form: number;
   cutscene_number: number;
@@ -116,7 +118,7 @@ export interface ISaveContext {
   start_mask: number;
   intro_flag: number;
   owl_id: number;
-  have_tatl: number;
+  have_tatl: Boolean;
   player_name: number;
   rupee_amount: number;
   quest_status: number;
