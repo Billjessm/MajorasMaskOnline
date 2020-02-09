@@ -858,7 +858,7 @@ export class MmOnline implements IPlugin {
 
         let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
 
-        this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x8000000, zobjbuf) }, 100);
+        this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x800000, zobjbuf) }, 100);
 
     }
 
@@ -979,13 +979,13 @@ export class MmOnline implements IPlugin {
     @EventHandler(EventsClient.ON_PLAYER_JOIN)
     onClient_PlayerJoin(nplayer: INetworkPlayer) {
         //this.pMgr.registerPuppet(nplayer);
-        this.overlord.registerPuppet(player);
+        this.overlord.registerPuppet(nplayer);
     }
 
     @EventHandler(EventsClient.ON_PLAYER_LEAVE)
     onClient_PlayerLeave(nplayer: INetworkPlayer) {
         //this.pMgr.unregisterPuppet(nplayer);
-        this.overlord.unregisterPuppet(player);
+        this.overlord.unregisterPuppet(nplayer);
     }
 
     // #################################################
@@ -2340,8 +2340,8 @@ export class MmOnline implements IPlugin {
     onPuppetData_client(packet: MmO_PuppetPacket) {
         if (
             this.core.isTitleScreen ||
-            this.core.helper.isPaused() ||
-            this.core.helper.entering_zone()
+            this.core.runtime.is_paused() ||
+            this.core.runtime.is_entering_zone()
         ) {
             return;
         }

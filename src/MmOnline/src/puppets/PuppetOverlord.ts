@@ -222,7 +222,7 @@ export class PuppetOverlord {
 
     
     if (
-      this.entering_zone()
+      this.core.runtime.is_entering_zone()
     )  {
       this.logger.info ("Not entering loading zone");
       this.processNewPlayers();
@@ -231,13 +231,5 @@ export class PuppetOverlord {
       this.lookForMissingPuppets();
     }
     this.sendPuppetPacket();
-  }
-  
-  entering_zone(): boolean{
-    let r = this.emulator.rdramRead32(0x40081C);
-  return (r & 0x00000001) === 1;
-  }
-  isPaused(): boolean {
-    return this.emulator.rdramRead32(0x1D1500) !== 0x3;
   }
 }
