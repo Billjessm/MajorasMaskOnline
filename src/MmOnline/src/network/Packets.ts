@@ -1,6 +1,7 @@
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
 import * as DB from './Database';
 import { PuppetData } from '../puppets/PuppetData'
+import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 export class SyncStorage extends Packet {
     cycle_flags: Buffer;
     event_flags: Buffer;
@@ -94,6 +95,18 @@ export class SyncSceneData extends Packet {
         super('SyncSceneData', 'MmOnline', lobby, persist);
         this.scene = scene;
         this.flags = flags;
+    }
+}
+
+export class SyncPlayerData extends Packet {
+    scene: number;
+    player: INetworkPlayer;
+    form: number;
+    constructor(lobby: string, scene: number, player: INetworkPlayer, form: number, persist: boolean) {
+        super('SyncPlayerData', 'MmOnline', lobby, persist);
+        this.scene = scene;
+        this.player = player;
+        this.form = form;
     }
 }
 

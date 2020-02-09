@@ -88,10 +88,10 @@ export class SaveContext extends API.BaseObj implements API.ISaveContext {
   }
 
   get current_form(): number {
-      return this.emulator.rdramRead32(this.cur_form_addr);
+      return this.emulator.rdramRead8(this.cur_form_addr);
   }
   set current_form(value: number) {
-      this.emulator.rdramWrite32(this.cur_form_addr, value);
+      this.emulator.rdramRead8(this.cur_form_addr);
   }
 
   get cutscene_number(): number {

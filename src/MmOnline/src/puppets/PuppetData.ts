@@ -48,9 +48,6 @@ export class PuppetData {
     this.emulator.rdramWriteBuffer(this.pointer + 0xb4, rot);
   }
 
-  get form(): number {
-    return this.save.current_form;
-  }
 
   /*get sound(): number {
     let id = this.link.current_sound_id;

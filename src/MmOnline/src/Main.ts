@@ -1,10 +1,12 @@
 import {
+    bus,
+    EventHandler,
     EventsClient,
     EventServerJoined,
     EventServerLeft,
-    EventHandler,
     EventsServer,
-} from 'modloader64_api/EventHandler';
+    setupEventHandlers,
+  } from 'modloader64_api/EventHandler';
 import { IModLoaderAPI, IPlugin } from 'modloader64_api/IModLoaderAPI';
 import {
     ILobbyStorage,
@@ -14,15 +16,22 @@ import {
     NetworkHandler,
     ServerNetworkHandler,
 } from 'modloader64_api/NetworkHandler';
+
 import { InjectCore } from 'modloader64_api/CoreInjection';
 import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
 import * as API from 'MajorasMask/API/Imports';
 import * as Net from './network/Imports';
-import { SyncConfig, MmO_PuppetPacket , SyncTimeReset} from './network/Imports';
+import { SyncConfig, MmO_PuppetPacket , SyncTimeReset, SyncSceneData, SceneData, SyncPlayerData} from './network/Imports';
 import { PuppetOverlord } from './puppets/PuppetOverlord';
 import { Puppet } from './puppets/Puppet';
 import { PuppetData } from './puppets/PuppetData';
 import { Player } from '../../../cores/MajorasMask/src/Player';
+import { PayloadType } from 'modloader64_api/PayloadType';
+import fs from 'fs';
+import path from 'path';
+import { zzstatic, zzstatic_cache } from './puppets/models/zzstatic/src/zzstatic';
+import { MMEvents, MmOnlineEvents } from '../../../cores/MajorasMask/API/Enums';
+import { SaveContext } from '../../../cores/MajorasMask/src/Imports';
 
 
 export class MmOnline implements IPlugin {
@@ -98,14 +107,14 @@ export class MmOnline implements IPlugin {
             this.db.clock_init = true;
             this.db.time_reset = false;
         }
-
         // Set global to current scene value
         this.curScene = scene;
 
+        
         // Ensure we have this scene data!
         this.check_db_instance(this.db, scene);
 
-
+        
         // Alert scene change!
         this.ModLoader.clientSide.sendPacket(new Net.SyncLocation(this.ModLoader.clientLobby, scene));
         this.ModLoader.logger.info('[Tick] Moved to scene[' + scene + '].');
@@ -823,26 +832,29 @@ export class MmOnline implements IPlugin {
         let pData = new Net.SyncMap(this.ModLoader.clientLobby, visible, visited, false);
         this.ModLoader.clientSide.sendPacket(pData);
     }
-
+    
     constructor() { }
 
     preinit(): void {
         //this.pMgr = new Puppet.PuppetManager();
         this.overlord = new PuppetOverlord(this.ModLoader.logger);
+
     }
 
     init(): void { }
 
     postinit(): void {
-        // Puppet Manager Inject
-        // this.pMgr.postinit(
-        //     this.ModLoader.emulator,
-        //     this.core,
-        //     this.ModLoader.me,
-        //     this.ModLoader
-        // );
 
-        // this.ModLoader.logger.info('Puppet manager activated.');
+        this.ModLoader.payloadManager.registerPayloadType(
+            new OverlayPayload('.ovl')
+        );
+
+        let zz = new zzstatic();
+
+        let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
+        
+        this.ModLoader.utils.setTimeoutFrames(()=>{this.ModLoader.emulator.rdramWriteBuffer(0x8000000, zobjbuf)}, 100);
+        
     }
 
     onTick(): void {
@@ -853,11 +865,13 @@ export class MmOnline implements IPlugin {
             return;
         }
 
+        this.overlord.onTick();
+
         // Initializers
         let bufStorage: Buffer;
         let bufData: Buffer;
         let scene: number = this.core.runtime.get_current_scene();
-
+        
         // Intro skip
         this.handle_intro_flag(scene);
 
@@ -879,7 +893,7 @@ export class MmOnline implements IPlugin {
 
         // Sync Flags
         this.handle_cycle_flags(bufData!, bufStorage!);
-        this.handle_event_flags(bufData!, bufStorage!);
+        //this.handle_event_flags(bufData!, bufStorage!);
         this.handle_game_flags(bufData!, bufStorage!);
         this.handle_owl_flags(bufData!, bufStorage!);
         this.handle_scene_data(bufData!, bufStorage!);
@@ -889,7 +903,7 @@ export class MmOnline implements IPlugin {
         this.handle_quest_status();
         this.handle_health();
         this.handle_magic();
-        this.handle_map();
+        //this.handle_map();
 
         // Sync Start Menu Items
         this.handle_equip_slots();
@@ -956,15 +970,15 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    @EventHandler(EventsClient.ON_PLAYER_JOIN)
-    onClient_PlayerJoin(nplayer: INetworkPlayer) {
-        //this.pMgr.registerPuppet(nplayer);
-    }
-
-    @EventHandler(EventsClient.ON_PLAYER_LEAVE)
-    onClient_PlayerLeave(nplayer: INetworkPlayer) {
-        //this.pMgr.unregisterPuppet(nplayer);
-    }
+        @EventHandler(EventsClient.ON_PLAYER_JOIN)
+        onPlayerJoin(player: INetworkPlayer) {
+            this.overlord.registerPuppet(player);
+        }
+    
+        @EventHandler(EventsClient.ON_PLAYER_LEAVE)
+        onPlayerLeft(player: INetworkPlayer) {
+        this.overlord.unregisterPuppet(player);
+        }
 
     // #################################################
     // ##  Server Receive Packets
@@ -2254,21 +2268,131 @@ export class MmOnline implements IPlugin {
         } catch (err) {}
     }
 
-    @ServerNetworkHandler('Ooto_PuppetPacket')
+    @EventHandler(MMEvents.ON_SCENE_CHANGE)
+    onSceneChange(scene: number, packet: SyncPlayerData ) {
+      this.overlord.localPlayerLoadingZone();
+      this.overlord.localPlayerChangingScenes(scene, packet.form);
+      this.ModLoader.clientSide.sendPacket(
+        new SyncPlayerData(
+          this.ModLoader.clientLobby,
+          scene, packet.player, packet.form, true
+        )
+      );
+      this.ModLoader.logger.info('client: I moved to scene ' + scene + '.');
+    }
+
+    @ServerNetworkHandler('MmO_ScenePacket')
+    onSceneChange_server(packet: IPacketHeader) {
+      let storage: Storage = this.ModLoader.lobbyManager.getLobbyStorage(
+        packet.lobby,
+        this
+      ) as Storage;
+    }
+  
+    @NetworkHandler('MmO_ScenePacket')
+    onSceneChange_client(packet: SyncPlayerData) {
+      this.overlord.changePuppetScene(packet.player, packet.scene, packet.form);
+      bus.emit(
+        MmOnlineEvents.CLIENT_REMOTE_PLAYER_CHANGED_SCENES,
+        new SyncPlayerData(
+            this.ModLoader.clientLobby,
+            packet.scene, packet.player, packet.form, true
+          )
+       );
+    }
+
+
+    @ServerNetworkHandler('MmO_PuppetPacket')
     onPuppetData_server(packet: MmO_PuppetPacket) {
         this.sendPacketToPlayersInScene(packet);
     }
 
-    @NetworkHandler('Ooto_PuppetPacket')
+    @NetworkHandler('MmO_PuppetPacket')
     onPuppetData_client(packet: MmO_PuppetPacket) {
         if (
         this.core.isTitleScreen ||
-        this.core.runtime.isPaused() ||
-        this.core.runtime.entering_zone()
+        this.core.helper.isPaused() ||
+        this.core.helper.entering_zone()
         ) {
         return;
         }
         this.overlord.processPuppetPacket(packet);
     }
 
+    @EventHandler(EventsClient.ON_PAYLOAD_INJECTED)
+    onPayload(evt: any) {
+    if (evt.file === 'link_puppet.ovl') {
+      this.ModLoader.utils.setTimeoutFrames(() => {
+        this.ModLoader.emulator.rdramWrite16(0x600140, evt.result);
+        console.log('Setting link puppet id to ' + evt.result + '.');
+      }, 20);
+    } 
+  }
+}
+
+class find_init {
+    constructor() {}
+
+    find(buf: Buffer, locate: string): number {
+        let loc: Buffer = Buffer.from(locate, 'hex');
+        if (buf.indexOf(loc) > -1) {
+            return buf.indexOf(loc);
+        }
+        return -1;
+    }
+}
+
+interface ovl_meta {
+  addr: string;
+  init: string;
+}
+
+export class OverlayPayload extends PayloadType {
+    constructor(ext: string) {
+        super(ext);
+    }
+
+    parse(file: string, buf: Buffer, dest: Buffer) {
+        console.log('Trying to allocate actor...');
+        let overlay_start: number = 0x1AEFD0;
+        let size = 0x02b1;
+        let empty_slots: number[] = new Array<number>();
+        for (let i = 0; i < size; i++) {
+            let entry_start: number = overlay_start + i * 0x20;
+            let _i: number = dest.readUInt32BE(entry_start + 0x14);
+            let total = 0;
+            total += _i;
+            if (total === 0) {
+                empty_slots.push(i);
+            }
+        }
+        console.log(empty_slots.length + ' empty actor slots found.');
+        let finder: find_init = new find_init();
+        let meta: ovl_meta = JSON.parse(
+            fs
+                .readFileSync(
+                    path.join(path.parse(file).dir, path.parse(file).name + '.json')
+                )
+                .toString()
+        );
+        let offset: number = finder.find(buf, meta.init);
+        if (offset === -1) {
+            console.log(
+                'Failed to find spawn parameters for actor ' +
+          path.parse(file).base +
+          '.'
+            );
+            return -1;
+        }
+        let addr: number = parseInt(meta.addr) + offset;
+        let slot: number = empty_slots.shift() as number;
+        console.log(
+            'Assigning ' + path.parse(file).base + ' to slot ' + slot + '.'
+        );
+        dest.writeUInt32BE(0x80000000 + addr, slot * 0x20 + overlay_start + 0x14);
+        buf.writeUInt8(slot, offset + 0x1);
+        buf.copy(dest, parseInt(meta.addr));
+        return slot;
+    }
+    
 }

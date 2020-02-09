@@ -17,6 +17,7 @@ export class MajorasMask implements ICore, API.IMMCore {
   runtime!: API.IRuntime;
   save!: API.ISaveContext;
   commandBuffer!: CommandBuffer;
+  helper!: API.IMmHelper;
   payloads: string[] = new Array<string>();
 
   isPlaying(): boolean {

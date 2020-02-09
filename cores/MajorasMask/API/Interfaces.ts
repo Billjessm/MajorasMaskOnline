@@ -85,11 +85,15 @@ export interface IPlayer {
 export interface IRuntime {
   get_current_scene(): number;
   goto_scene(scene: number): void;
-  entering_zone(): boolean;
-  isPaused(): boolean;
   cutscene_ptr: number;
   scene_flags: IBuffered;
 }
+
+export interface IMmHelper {
+  entering_zone(): boolean;
+  isPaused(): boolean;
+}
+
 
 export interface ISaveContext {
   cycle_flags: IBuffered;
@@ -131,6 +135,7 @@ export interface IMMCore {
   runtime: IRuntime;
   save: ISaveContext;
   commandBuffer: ICommandBuffer;
+  helper: IMmHelper;
 
   isPlaying(): boolean;
   isTitleScreen(): boolean;

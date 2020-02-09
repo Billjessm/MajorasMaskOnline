@@ -4,7 +4,10 @@ import IMemory from 'modloader64_api/IMemory';
 import { INetworkPlayer, LobbyData } from 'modloader64_api/NetworkHandler';
 import { IModLoaderAPI, ILogger } from 'modloader64_api/IModLoaderAPI';
 import * as Net from '../network/Imports';
+import * as API from '../../../../cores/MajorasMask/API/Imports';
+import * as SUB from '../../../../cores/MajorasMask/src/Sub/Imports';
 import fs from 'fs';
+import { Runtime } from '../../../../cores/MajorasMask/src/Runtime';
 
 export class PuppetOverlord {
   private logger: ILogger;
@@ -216,14 +219,25 @@ export class PuppetOverlord {
   }
 
   onTick() {
+
+    
     if (
-      !this.core.runtime.entering_zone()
-    ) {
+      this.entering_zone()
+    )  {
+      this.logger.info ("Not entering loading zone");
       this.processNewPlayers();
       this.processAwaitingSpawns();
       this.lookForStrandedPuppets();
       this.lookForMissingPuppets();
     }
     this.sendPuppetPacket();
+  }
+  
+  entering_zone(): boolean{
+    let r = this.emulator.rdramRead32(0x40081C);
+  return (r & 0x00000001) === 1;
+  }
+  isPaused(): boolean {
+    return this.emulator.rdramRead32(0x1D1500) !== 0x3;
   }
 }

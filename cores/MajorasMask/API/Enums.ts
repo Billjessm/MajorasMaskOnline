@@ -530,6 +530,36 @@ export enum MaskSlotType {
   FIERCE_DEITY = 0x17,
 }
 
+export enum MMEvents {
+  ON_SAVE_LOADED = 'onSaveLoaded',
+  ON_SCENE_CHANGE = 'onSceneChange',
+  ON_LOADING_ZONE = 'onLoadingZone',
+  ON_ACTOR_SPAWN = 'onActorSpawn',
+  ON_ACTOR_DESPAWN = 'onActorDespawn',
+  ON_ROOM_CHANGE = 'onRoomChange',
+  ON_ROOM_CHANGE_PRE = 'onPreRoomChange',
+  ON_AGE_CHANGE = 'onAgeChange',
+}
+
+export enum MmOnlineEvents {
+  PLAYER_PUPPET_PRESPAWN = 'OotOnline:onPlayerPuppetPreSpawned',
+  PLAYER_PUPPET_SPAWNED = 'OotOnline:onPlayerPuppetSpawned',
+  PLAYER_PUPPET_DESPAWNED = 'OotOnline:onPlayerPuppetDespawned',
+  SERVER_PLAYER_CHANGED_SCENES = 'OotOnline:onServerPlayerChangedScenes',
+  CLIENT_REMOTE_PLAYER_CHANGED_SCENES = 'OotOnline:onRemotePlayerChangedScenes',
+  GHOST_MODE = 'OotOnline:EnableGhostMode',
+  GAINED_HEART_CONTAINER = 'OotOnline:GainedHeartContainer',
+  GAINED_PIECE_OF_HEART = 'OotOnline:GainedPieceOfHeart',
+  MAGIC_METER_INCREASED = 'OotOnline:GainedMagicMeter',
+  CUSTOM_MODEL_APPLIED_ADULT = 'OotOnline:ApplyCustomModelAdult',
+  CUSTOM_MODEL_APPLIED_CHILD = 'OotOnline:ApplyCustomModelChild',
+  CUSTOM_MODEL_APPLIED_ANIMATIONS = 'OotOnline:ApplyCustomAnims',
+  CUSTOM_MODEL_APPLIED_ICON_ADULT = 'OotOnline:ApplyCustomIconAdult',
+  CUSTOM_MODEL_APPLIED_ICON_CHILD = 'OotOnline:ApplyCustomIconChild',
+  ON_INVENTORY_UPDATE = 'OotOnline:OnInventoryUpdate',
+  ON_EXTERNAL_ACTOR_SYNC_LOAD = 'OotOnline:OnExternalActorSyncLoad',
+}
+
 export enum SceneType {
   NONE = 0xff,
   SOUTHERN_SWAMP = 0x00,

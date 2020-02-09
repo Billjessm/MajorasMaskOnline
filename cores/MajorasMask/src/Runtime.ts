@@ -45,12 +45,6 @@ export class Runtime extends API.BaseObj implements API.IRuntime {
       this.emulator.rdramWrite32(0x3ff398, scene);
       this.emulator.rdramWrite8(0x3ff66a, 1);
   }
-  entering_zone(): boolean {
-    let r = API.LinkState.LOADING_ZONE;
-    return (r & 0x000000ff) === 1;
-  }
-  isPaused(): boolean {
-    return this.emulator.rdramRead32(0x1D1500) !== 0x3;
-  }
+  
 }
 
