@@ -1,6 +1,6 @@
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
 import * as DB from './Database';
-
+import { PuppetData } from '../puppets/PuppetData'
 export class SyncStorage extends Packet {
     cycle_flags: Buffer;
     event_flags: Buffer;
@@ -49,6 +49,19 @@ export class SyncStorage extends Packet {
         this.masks = masks;
         this.clock = clock;
         this.game_active = game_active;
+    }
+}
+
+export class SyncConfig extends Packet {
+    timeless: boolean;
+    
+    constructor(
+        lobby: string,
+        timeless: boolean,
+        persist: boolean
+    ) {
+        super('SyncConfig', 'MmOnline', lobby, persist);
+        this.timeless = timeless;
     }
 }
 
@@ -146,6 +159,14 @@ export class SyncTimeReset extends Packet {
 //   }
 // }
 
+export class MmO_PuppetPacket extends UDPPacket {
+    data: PuppetData;
+  
+    constructor(puppetData: PuppetData, lobby: string) {
+      super('MmO_PuppetPacket', 'MmOnline', lobby, false);
+      this.data = puppetData;
+    }
+  }
 export class SyncLocation extends Packet {
     scene: number;
     constructor(lobby: string, scene: number) {

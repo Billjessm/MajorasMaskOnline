@@ -9,6 +9,7 @@ import { IModLoaderAPI, IPlugin } from 'modloader64_api/IModLoaderAPI';
 import {
     ILobbyStorage,
     INetworkPlayer,
+    IPacketHeader,
     LobbyData,
     NetworkHandler,
     ServerNetworkHandler,
@@ -17,6 +18,11 @@ import { InjectCore } from 'modloader64_api/CoreInjection';
 import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
 import * as API from 'MajorasMask/API/Imports';
 import * as Net from './network/Imports';
+import { SyncConfig, MmO_PuppetPacket } from './network/Imports';
+import { PuppetOverlord } from './puppets/PuppetOverlord';
+import { Puppet } from './puppets/Puppet';
+import { PuppetData } from './puppets/PuppetData';
+import { Player } from '../../../cores/MajorasMask/src/Player';
 
 export class MmOnline implements IPlugin {
     ModLoader = {} as IModLoaderAPI;
@@ -28,6 +34,9 @@ export class MmOnline implements IPlugin {
     db = new Net.DatabaseClient();
 
     protected curScene: number = -1;
+
+    // Client variables
+    overlord!: PuppetOverlord;
 
     reset_session(flagsOnly: boolean) {
         if (!flagsOnly) {
@@ -94,6 +103,7 @@ export class MmOnline implements IPlugin {
 
         // Ensure we have this scene data!
         this.check_db_instance(this.db, scene);
+
 
         // Alert scene change!
         this.ModLoader.clientSide.sendPacket(new Net.SyncLocation(this.ModLoader.clientLobby, scene));
@@ -722,6 +732,7 @@ export class MmOnline implements IPlugin {
 
     preinit(): void {
         //this.pMgr = new Puppet.PuppetManager();
+        this.overlord = new PuppetOverlord(this.ModLoader.logger);
     }
 
     init(): void { }
@@ -811,7 +822,15 @@ export class MmOnline implements IPlugin {
         this.db.timeless = lobby.data['MmOnline:timeless_mode'];
 
         // Send our storage request to the server
-        let pData = new Packet('Request_Storage', 'MmOnline', this.ModLoader.clientLobby, false);
+        let pData = new Packet('RequestStorage', 'MmOnline', this.ModLoader.clientLobby, false);
+        this.ModLoader.clientSide.sendPacket(pData);
+
+        // Send our config data
+        pData = new SyncConfig(
+            this.ModLoader.clientLobby,
+            this.db.timeless,
+            false
+        );
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
@@ -851,7 +870,7 @@ export class MmOnline implements IPlugin {
     // ##  Server Receive Packets
     // #################################################
 
-    @ServerNetworkHandler('Request_Storage')
+    @ServerNetworkHandler('RequestStorage')
     onServer_RequestStorage(packet: Packet): void {
         this.ModLoader.logger.info('[Server] Sending: {Lobby Storage}');
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
@@ -873,6 +892,31 @@ export class MmOnline implements IPlugin {
             sDB.game_active
         );
         this.ModLoader.serverSide.sendPacketToSpecificPlayer(pData, packet.player);
+    }
+
+    @ServerNetworkHandler('SyncConfig')
+    onServer_SyncConfig(packet: Net.SyncConfig): void {
+        this.ModLoader.logger.info('[Server] Received: {Lobby Config}');
+
+        // Initializers
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Only overwrite if lobby host
+        if (!sDB.hasConfig) {
+            sDB.timeless = packet.timeless;
+
+            sDB.hasConfig = true;
+            this.ModLoader.logger.info('[Server] Updated: {Lobby Config}');
+        }
+
+        // Update everyones config
+        let pData = new Net.SyncConfig(
+            packet.lobby,
+            sDB.timeless,
+            true
+        );
+
+        this.ModLoader.serverSide.sendPacket(pData);
     }
 
     @ServerNetworkHandler('SyncTimeReset')
@@ -1502,6 +1546,13 @@ export class MmOnline implements IPlugin {
         this.db.game_active = packet.game_active;
     }
 
+    @NetworkHandler('SyncConfig')
+    onClient_SyncConfig(packet: Net.SyncConfig) {
+        this.ModLoader.logger.info('[Client] Updated: {Lobby Config}');
+
+        this.db.timeless = packet.timeless;
+    }
+
     @NetworkHandler('SyncTimeReset')
     onClient_SyncTimeReset(packet: Net.SyncTimeReset): void {
         this.ModLoader.logger.info('[Client] Invoked: {Time Reset}');
@@ -1907,18 +1958,30 @@ export class MmOnline implements IPlugin {
         // Timeless version
         else {
             // If a new bottle was collected that we dont have give empty bottles
-            if (data[0x12] === 255 && packet.value[0x12] !== 255)
+            if (data[0x12] === 255 && packet.value[0x12] !== 255) {
                 data[0x12] = API.ItemType.BOTTLE_EMPTY;
-            if (data[0x13] === 255 && packet.value[0x13] !== 255)
+                needUpdate = true;
+            }
+            if (data[0x13] === 255 && packet.value[0x13] !== 255) {
                 data[0x13] = API.ItemType.BOTTLE_EMPTY;
-            if (data[0x14] === 255 && packet.value[0x14] !== 255)
+                needUpdate = true;
+            }
+            if (data[0x14] === 255 && packet.value[0x14] !== 255) {
                 data[0x14] = API.ItemType.BOTTLE_EMPTY;
-            if (data[0x15] === 255 && packet.value[0x15] !== 255)
+                needUpdate = true;
+            }
+            if (data[0x15] === 255 && packet.value[0x15] !== 255) {
                 data[0x15] = API.ItemType.BOTTLE_EMPTY;
-            if (data[0x16] === 255 && packet.value[0x16] !== 255)
+                needUpdate = true;
+            }
+            if (data[0x16] === 255 && packet.value[0x16] !== 255) {
                 data[0x16] = API.ItemType.BOTTLE_EMPTY;
-            if (data[0x17] === 255 && packet.value[0x17] !== 255)
+                needUpdate = true;
+            }
+            if (data[0x17] === 255 && packet.value[0x17] !== 255) {
                 data[0x17] = API.ItemType.BOTTLE_EMPTY;
+                needUpdate = true;
+            }
         }
 
         if (!needUpdate) return;
@@ -2006,25 +2069,45 @@ export class MmOnline implements IPlugin {
 
     // Puppet Tracking
 
-    @NetworkHandler('Request_Scene')
-    onClient_RequestScene(packet: Packet) {
-        if (this.core.runtime === undefined || !this.core.isPlaying) return;
-        let pData = new Net.SyncLocation(packet.lobby, this.curScene);
-        this.ModLoader.clientSide.sendPacketToSpecificPlayer(pData, packet.player);
+
+    //------------------------------
+    // Puppet handling
+    //------------------------------
+
+    sendPacketToPlayersInScene(packet: IPacketHeader) {
+        try {
+        let storage: Storage = this.ModLoader.lobbyManager.getLobbyStorage(
+            packet.lobby,
+            this
+        ) as Storage;
+        Object.keys(storage.players).forEach((key: string) => {
+            if (storage.players[key] === storage.players[packet.player.uuid]) {
+            if (storage.networkPlayerInstances[key].uuid !== packet.player.uuid) {
+                this.ModLoader.serverSide.sendPacketToSpecificPlayer(
+                packet,
+                storage.networkPlayerInstances[key]
+                );
+            }
+            }
+        });
+        } catch (err) {}
     }
 
-    @NetworkHandler('SyncLocation')
-    onClient_SyncLocation(packet: Net.SyncLocation) {
-        let pMsg = 'Player[' + packet.player.nickname + ']';
-        let sMsg = 'Scene[' + packet.scene + ']';
-        //this.pMgr.changePuppetScene(packet.player, packet.scene);
-        this.ModLoader.logger.info('[Client] Received: {Player Scene}');
-        this.ModLoader.logger.info('[Client] Updated: ' + pMsg + ' to ' + sMsg);
-        this.check_db_instance(this.db, packet.scene);
+    @ServerNetworkHandler('Ooto_PuppetPacket')
+    onPuppetData_server(packet: MmO_PuppetPacket) {
+        this.sendPacketToPlayersInScene(packet);
     }
 
-    // @NetworkHandler('SyncPuppet')
-    // onClient_SyncPuppet(packet: Net.SyncPuppet) {
-    //     this.pMgr.handlePuppet(packet);
-    // }
+    @NetworkHandler('Ooto_PuppetPacket')
+    onPuppetData_client(packet: MmO_PuppetPacket) {
+        if (
+        this.core.isTitleScreen ||
+        this.core.runtime.isPaused() ||
+        this.core.runtime.entering_zone()
+        ) {
+        return;
+        }
+        this.overlord.processPuppetPacket(packet);
+    }
+
 }

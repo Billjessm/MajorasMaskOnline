@@ -1,2 +1,2 @@
-# Zelda: Majoras Mask Online
+# Majoras Mask Core
 This is the official repository.

@@ -21,6 +21,9 @@ export class Database {
 
     // Has Started Game Check
     game_active: boolean = false;
+
+    // Config Settings
+    timeless: boolean = false;
 }
 
 export class DatabaseClient extends Database {
@@ -32,7 +35,6 @@ export class DatabaseClient extends Database {
     clock_need_update: boolean = false;
     cycle_need_update: boolean = false;
     event_need_update: boolean = false;
-    timeless: boolean = false;
 
     bank_need_update: boolean = false;
     health_need_update: boolean = false;
@@ -44,6 +46,9 @@ export class DatabaseServer extends Database {
     // Puppets
     playerInstances: any = {};
     players: any = {};
+    
+    // Config Settings
+    hasConfig: boolean = false;
 }
 
 export class SceneData {
