@@ -75,7 +75,7 @@ export class MmOnline implements IPlugin {
             this.ModLoader.clientLobby,
             this.db.cycle_bak,
             this.db.event_bak,
-            this.db.clock,
+            this.db.clock_bak,
             false
         );
         this.ModLoader.clientSide.sendPacket(pData);
@@ -85,7 +85,6 @@ export class MmOnline implements IPlugin {
         if (scene === this.curScene) return;
 
         // Clock can begin functioning
-        console.log("!!!!!!!!CHECK SCENE!!!!!!!!!!!");
         if (this.curScene === 0x804d) {
             this.db.clock_init = true;
             this.db.time_reset = false;
@@ -721,7 +720,7 @@ export class MmOnline implements IPlugin {
                 this.core.save.clock.is_night = this.db.clock.is_night;
                 this.core.save.clock.speed = this.db.clock.speed;
                 this.core.save.clock.time = this.db.clock.time;
-                this.db.clock_bak = this.db.clock;
+                this.db.clock_live = this.db.clock;
             }
             this.db.clock_need_update = false;
             return;
@@ -743,14 +742,23 @@ export class MmOnline implements IPlugin {
         let is_night: boolean = this.core.save.clock.is_night;
         let needUpdate: boolean = false;
 
+        let clock = new Net.ClockData();
+        clock.current_day = cur_day;
+        clock.elapsed = elapsed;
+        clock.is_night = is_night;
+        clock.speed = speed;
+        clock.time = time;
+        clock.is_started = true;
+
         // Check time to backup data when save is invoked
         {
             if (
-                cur_day < this.db.clock_bak.current_day ||
-                elapsed < this.db.clock_bak.elapsed ||
-                time < this.db.clock_bak.time ||
-                is_night !== this.db.clock_bak.is_night
+                cur_day < this.db.clock_live.current_day ||
+                elapsed < this.db.clock_live.elapsed ||
+                time < this.db.clock_live.time ||
+                is_night !== this.db.clock_live.is_night
             ) {
+                this.db.clock_bak = clock;
                 this.db.cycle_bak = this.core.save.cycle_flags.get_all();
                 this.db.event_bak = this.core.save.event_flags.get_all();
             }
@@ -764,22 +772,14 @@ export class MmOnline implements IPlugin {
         if (speed !== this.db.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
 
-        let clock = new Net.ClockData();
-        clock.current_day = cur_day;
-        clock.elapsed = elapsed;
-        clock.is_night = is_night;
-        clock.speed = speed;
-        clock.time = time;
-        clock.is_started = true;
-
         // Process Changes
         if (!needUpdate) {
-            this.db.clock_bak = clock;
+            this.db.clock_live = clock;
             return;
         }
 
         this.db.clock = clock;
-        this.db.clock_bak = clock;
+        this.db.clock_live = clock;
 
         pData = new Net.SyncClock(this.ModLoader.clientLobby, clock);
         this.ModLoader.clientSide.sendPacket(pData);
@@ -2183,7 +2183,7 @@ export class MmOnline implements IPlugin {
         if (!needUpdate) return;
 
         this.db.clock = packet.clock;
-        this.db.clock_bak = packet.clock;
+        this.db.clock_live = packet.clock;
         this.db.clock_need_update = true;
 
         this.ModLoader.logger.info('[Client] Updated: {Clock}');
