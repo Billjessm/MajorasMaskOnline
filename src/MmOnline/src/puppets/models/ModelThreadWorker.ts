@@ -1,7 +1,7 @@
-import { zzstatic, zzstatic_cache } from './zzstatic/src/zzstatic';
 import fs from 'fs';
-import { Pak } from 'modloader64_api/PakFormat';
 import path from 'path';
+import { Pak } from 'modloader64_api/PakFormat';
+import { zzstatic, zzstatic_cache } from './zzstatic/src/zzstatic';
 
 let myArgs = process.argv.slice(2);
 

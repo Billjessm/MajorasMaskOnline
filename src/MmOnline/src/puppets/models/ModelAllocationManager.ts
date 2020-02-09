@@ -1,7 +1,6 @@
-import { ModelPlayer } from './ModelPlayer';
-import { Age } from 'modloader64_api/OOT/OOTAPI';
-import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import fs from 'fs';
+import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
+import { ModelPlayer } from './ModelPlayer';
 import { zzstatic } from './zzstatic/src/zzstatic';
 
 export class ModelAllocationManager {

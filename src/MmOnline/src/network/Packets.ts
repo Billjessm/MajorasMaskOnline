@@ -177,41 +177,28 @@ export class SyncTimeReset extends Packet {
 // ##  Puppet Tracking
 // #################################################
 
-// export class SyncPuppet extends UDPPacket {
-//   puppet: PData.IData;
-//   constructor(lobby: string, value: PData.Data) {
-//       super('SyncPuppet', 'BkOnline', lobby, false);
-//       this.puppet = value;
-//   }
-// }
-
-// ^^^ THIS IS ME
-export class MmO_PuppetPacket extends UDPPacket {
-    data: PuppetData;
-
-    constructor(puppetData: PuppetData, lobby: string) {
-        super('MmO_PuppetPacket', 'MmOnline', lobby, false);
-        this.data = puppetData;
-    }
-
-}
-
-export class SyncPlayerData extends Packet {
-    scene: number;
-    player: INetworkPlayer;
-    form: number;
-    constructor(lobby: string, scene: number, player: INetworkPlayer, form: number, persist: boolean) {
-        super('SyncPlayerData', 'MmOnline', lobby, persist);
-        this.scene = scene;
-        this.player = player;
-        this.form = form;
+export class SyncPuppet extends UDPPacket {
+    // puppet: PData.IData;
+    puppet: PuppetData;
+    constructor(lobby: string, puppet: PuppetData) {
+        super('SyncPuppet', 'MmOnline', lobby, false);
+        this.puppet = puppet;
     }
 }
 
 export class SyncLocation extends Packet {
+    player: INetworkPlayer;
     scene: number;
-    constructor(lobby: string, scene: number) {
+    form: number;
+    constructor(
+        lobby: string,
+        player: INetworkPlayer,
+        scene: number,
+        form: number
+    ) {
         super('SyncLocation', 'MmOnline', lobby, true);
+        this.player = player;
         this.scene = scene;
+        this.form = form;
     }
 }

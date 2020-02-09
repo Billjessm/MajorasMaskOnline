@@ -1,19 +1,18 @@
 import IMemory from 'modloader64_api/IMemory';
-import { IPlayer } from 'MajorasMask/API/Imports';
-import { ISaveContext } from 'MajorasMask/API/Imports';
+import * as API from 'MajorasMask/API/Imports';
 
 export class PuppetData {
   pointer: number;
   emulator: IMemory;
-  link: IPlayer;
-  save: ISaveContext;
+  link: API.IPlayer;
+  save: API.ISaveContext;
   private readonly copyFields: string[] = new Array<string>();
 
   constructor(
     pointer: number,
     emulator: IMemory,
-    link: IPlayer,
-    save: ISaveContext
+    link: API.IPlayer,
+    save: API.ISaveContext
   ) {
     this.pointer = pointer;
     this.emulator = emulator;

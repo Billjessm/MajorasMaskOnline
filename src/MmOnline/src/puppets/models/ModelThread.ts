@@ -1,9 +1,9 @@
-import { fork, ForkOptions } from 'child_process';
-import path from 'path';
-import { zzstatic_cache, zzstatic } from './zzstatic/src/zzstatic';
 import fs from 'fs';
+import path from 'path';
 import { IModLoaderAPI } from 'modloader64_api/IModLoaderAPI';
 import { Pak } from 'modloader64_api/PakFormat';
+import { fork, ForkOptions } from 'child_process';
+import { zzstatic_cache, zzstatic } from './zzstatic/src/zzstatic';
 
 export class ModelThread {
   model: Buffer;
