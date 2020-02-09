@@ -1,7 +1,8 @@
-#include <D:\OoT_Modding\Code\CAT\gcc\mips64\include\z64ovlMM/mm/u10.h>
-#include <D:\OoT_Modding\Code\CAT\gcc\mips64\include\z64ovlMM/mm/helpers.h>
-#include <C:\Users\pikpi\Desktop\ModLoader64\MajorasMaskOnline\src\MmOnline\src\puppets\defines_mm.h>
-#include <C:\Users\pikpi\Desktop\ModLoader64\MajorasMaskOnline\src\MmOnline\src\puppets\defines_limbs.h>
+#include <D:/OoT_Modding/Code/CAT/gcc/mips64/include/z64ovl/mm/u10.h>
+#include <D:/OoT_Modding/Code/CAT/gcc/mips64/include\z64ovl/z64ovl_helpers.h>
+#include "defines_limbs.h"
+#include "defines_mm.h"
+
 
 // Actor Information
 
@@ -9,29 +10,29 @@
 
 #define get_addr_offset(l, o) ((uint32_t *)((uint32_t)l + (uint32_t)o))
 
-const z64_capsule_init_t Collision =
-    {
-        .cso_0x00 = 0x0A,
-        .cso_0x01 = 0x00,
-        .cso_0x01_02 = 0x00,
-        .unk_0x12 = 0x09,
-        .unk_0x12_2 = 0x20,
-        .cso_0x05 = 0x01,
-        .cso_0x08 = 0x00,
-        .cso_0x0C = 0x00000000,
-        .damage_type = 0x00,
-        .damage_amount = 0x00,
-        .cso_0x14 = 0xF7CFFFFF,
-        .cso_0x18 = 0x00,
-        .cso_0x19 = 0x00,
-        .cso_0x1C = 0x00,
-        .cso_0x1D = 0x00,
-        .cso_0x1E = 0x01,
-        .radius = 0x0007,
-        .height = 0x003C,
-        .cso_0x24 = 0x0000,
-        .pos = {0, 0, 0}};
-
+z64_collider_cylinder_init_t Collision =
+{
+    .body = {
+        .unk_0x14 = 0x07,
+        .collider_flags = 0x40,
+        .collide_flags = 0x09,
+        .mask_a = 0x39,
+        .mask_b = 0x10,
+        .type = 0x01,
+        .body_flags = 0x00,
+        .toucher_mask = 0x00000000,
+        .bumper_effect = 0x00,
+        .toucher_damage = 0x04,
+        .bumper_mask = 0xFFCFFFFF,
+        .toucher_flags = 0x01,
+        .bumper_flags = 0x05,
+        .body_flags_2 = 0x05
+        },
+    .radius = 0x0015,
+    .height = 0x0032,
+    .y_shift = 0,
+    .position = {.x = 0, .y = 0, .z = 0}
+};
 
 typedef struct
 {
@@ -62,15 +63,17 @@ typedef struct
     uint8_t backItem;
 } z_link_puppet;
 
+
 typedef struct
 {
     z64_actor_t actor;
     uint8_t current_frame_data[0x86];
     z64_skelanime_t skelanime;
-    z64_capsule_init_t cylinder;
+    z64_collider_cylinder_main_t Collision;
     z_link_puppet puppetData;
-    z64_capsule_t Collision;
+    uint64_t end;
 } entity_t;
+
 
 static uint32_t *getPlayerInstancePtr(z64_global_t *global)
 {
@@ -103,6 +106,7 @@ static uint32_t getCodeAddress()
     uint32_t offset = 0;
 
     offset = 0x800A5AC0;
+
     return offset;
 }
 
@@ -110,32 +114,40 @@ static uint32_t getSkeletonOffset()
 {
     uint32_t offset = 0;
 
-    offset = 0x1E244;
+    offset = 0x11A350;
 
     return offset;
 }
 
 static void init(entity_t *en, z64_global_t *global)
 {
+
     en->puppetData.age = MM_FORM_HUMAN;
-    
 
-	uint32_t* check1 = (uint32_t*)zh_seg2ram(0x06005000);
-	uint32_t* check2 = (uint32_t*)zh_seg2ram(0x06005000 + 0x4);
-	uint32_t* check3 = (uint32_t*)zh_seg2ram(0x06005000 + 0x8);
 
-	uint32_t addr = getCodeAddress() + getSkeletonOffset();
-	uint32_t* addr_p = (uint32_t*)addr;
-	en->puppetData.playasData.skeleton = *addr_p;
+
+	en->puppetData.playasData.isZZ = 1;
+	uint32_t base = 0x80800000;
+	en->puppetData.playasData.base = base;
+	uint32_t skele = base + 0x0000500C;
+	uint32_t *seg2 = (uint32_t *)skele;
+	en->puppetData.playasData.skeleton = *seg2;
+	en->puppetData.age = *((uint8_t *)base + 0x0000500B);
+
+
+    if (en->puppetData.age == MM_FORM_HUMAN) {
+        Collision.radius = 0x12;
+        Collision.height = 0x0020;
+    }
 
     actor_collider_cylinder_init(global, &en->Collision, &en->actor, &Collision);
 
-    	skelanime_init_mtx(
-		global,
-		&en->skelanime,
-		en->puppetData.playasData.skeleton,
-		0,
-		0, 0, 0);
+    skelanime_init_mtx(
+    global,
+    &en->skelanime,
+    en->puppetData.playasData.skeleton,
+    0,
+    0, 0, 0);
 
     actor_anime_change(&en->skelanime, 0, 0.0, 0.0, 0, 0, 1);
     actor_set_scale(&en->actor, 0.01f);
@@ -149,14 +161,21 @@ static void init(entity_t *en, z64_global_t *global)
     en->puppetData.bottleColor.g = 0xFF;
     en->puppetData.bottleColor.b = 0xFF;
     en->puppetData.bottleColor.a = 0xFF;
+
+    en->end = 0xDEADBEEFBEEFDEAD;
 }
 
 static void play(entity_t *en, z64_global_t *global)
 {
+	if (en->puppetData.playasData.isZZ)
+    {
+        const uint32_t eyes[3] = {en->puppetData.playasData.base + 0x00000000, en->puppetData.playasData.base + 0x00000800, en->puppetData.playasData.base + 0x00001000};
+        en->puppetData.playasData.eye_texture = eyes[helper_eye_blink(&en->puppetData.playasData.eye_index)];
+    }
+
     actor_collider_cylinder_update(&en->actor, &en->Collision);
     
     actor_collision_check_set_ot(global, AADDR(global, 0x18884), &en->Collision);
-
 }
 
 static int MMAnimate(z64_global_t* global, int limb_number, uint32_t* display_list, vec3f_t* translation, vec3s_t* rotation, entity_t* en)
@@ -216,7 +235,7 @@ static int MMAnimate(z64_global_t* global, int limb_number, uint32_t* display_li
 			case 6:
 				break;
 			case 7:
-				*display_list = en->puppetData.playasData.isZZ ? en->puppetData.playasData.base + HUMAN_DL_OPEN_HAND_ZZ : HUMAN_DL_OPEN_HAND;
+				*display_list = en->puppetData.playasData.isZZ ? en->puppetData.playasData.base + HUMAN_DL_LHAND_ZZ : HUMAN_DL_OPEN_HAND;
 				break;
 			case 8:
 				*display_list = en->puppetData.playasData.isZZ ? en->puppetData.playasData.base + HUMAN_DL_LFIST_ZZ : HUMAN_DL_LFIST;
@@ -308,13 +327,6 @@ static int MMAnimate(z64_global_t* global, int limb_number, uint32_t* display_li
 	return 0;
 }
 
-#define GFX_POLY_OPA ZQDL(global, poly_opa)
-
-static void otherCallback(z64_global_t *global, uint8_t limb, uint32_t dlist, vec3s_t *rotation, entity_t *en)
-{
-
-    return 1;
-}
 
 static void draw(entity_t *en, z64_global_t *global)
 {
@@ -327,23 +339,22 @@ static void draw(entity_t *en, z64_global_t *global)
         en->skelanime.limb_index,
         en->skelanime.unk5,
         en->skelanime.dlist_count,
-        &MMAnimate, &otherCallback,
+        &MMAnimate, 0,
         &en->actor);
     
 }
 
 static void destroy(entity_t *en, z64_global_t *global)
 {
-    actor_collider_cylinder_free(global, &en->cylinder);
+    actor_collider_cylinder_free(global, &en->Collision);
 }
 
-/* .data */
 const z64_actor_init_t init_vars = {
-    .number = 13, 
+    .number = 0x11, 
     .padding = 0x00, 
     .type = 0x4, 
     .room = 0xFF, 
-    .flags = 0x00000001, 
+    .flags = 0x00002431, 
     .object = OBJ_ID_MM_CHILD, 
     .instance_size = sizeof(entity_t), 
     .init = init, 

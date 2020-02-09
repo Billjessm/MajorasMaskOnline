@@ -1,4 +1,6 @@
+import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
+import { PuppetData } from '../puppets/PuppetData'
 import * as DB from './Database';
 
 export class SyncStorage extends Packet {
@@ -182,6 +184,29 @@ export class SyncTimeReset extends Packet {
 //       this.puppet = value;
 //   }
 // }
+
+// ^^^ THIS IS ME
+export class MmO_PuppetPacket extends UDPPacket {
+    data: PuppetData;
+
+    constructor(puppetData: PuppetData, lobby: string) {
+        super('MmO_PuppetPacket', 'MmOnline', lobby, false);
+        this.data = puppetData;
+    }
+
+}
+
+export class SyncPlayerData extends Packet {
+    scene: number;
+    player: INetworkPlayer;
+    form: number;
+    constructor(lobby: string, scene: number, player: INetworkPlayer, form: number, persist: boolean) {
+        super('SyncPlayerData', 'MmOnline', lobby, persist);
+        this.scene = scene;
+        this.player = player;
+        this.form = form;
+    }
+}
 
 export class SyncLocation extends Packet {
     scene: number;

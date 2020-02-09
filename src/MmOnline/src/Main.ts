@@ -1,14 +1,17 @@
 import {
+    bus,
+    EventHandler,
     EventsClient,
     EventServerJoined,
     EventServerLeft,
-    EventHandler,
     EventsServer,
+    setupEventHandlers,
 } from 'modloader64_api/EventHandler';
 import { IModLoaderAPI, IPlugin } from 'modloader64_api/IModLoaderAPI';
 import {
     ILobbyStorage,
     INetworkPlayer,
+    IPacketHeader,
     LobbyData,
     NetworkHandler,
     ServerNetworkHandler,
@@ -17,7 +20,18 @@ import { InjectCore } from 'modloader64_api/CoreInjection';
 import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
 import * as API from 'MajorasMask/API/Imports';
 import * as Net from './network/Imports';
-import { SyncConfig, SyncTimeReset } from './network/Imports';
+import { SyncConfig, MmO_PuppetPacket, SyncTimeReset, SyncSceneData, SceneData, SyncPlayerData } from './network/Imports';
+import { PuppetOverlord } from './puppets/PuppetOverlord';
+import { Puppet } from './puppets/Puppet';
+import { PuppetData } from './puppets/PuppetData';
+import { Player } from '../../../cores/MajorasMask/src/Player';
+import { PayloadType } from 'modloader64_api/PayloadType';
+import fs from 'fs';
+import path from 'path';
+import { zzstatic, zzstatic_cache } from './puppets/models/zzstatic/src/zzstatic';
+import { MMEvents, MmOnlineEvents } from '../../../cores/MajorasMask/API/Enums';
+import { SaveContext } from '../../../cores/MajorasMask/src/Imports';
+
 
 export class MmOnline implements IPlugin {
     ModLoader = {} as IModLoaderAPI;
@@ -28,6 +42,8 @@ export class MmOnline implements IPlugin {
     // Storage Variables
     db = new Net.DatabaseClient();
 
+    // Helpers
+    overlord!: PuppetOverlord;
     protected curScene: number = -1;
 
     reset_session(flagsOnly: boolean) {
@@ -818,6 +834,7 @@ export class MmOnline implements IPlugin {
 
     preinit(): void {
         //this.pMgr = new Puppet.PuppetManager();
+        this.overlord = new PuppetOverlord(this.ModLoader.logger);
     }
 
     init(): void { }
@@ -832,6 +849,17 @@ export class MmOnline implements IPlugin {
         // );
 
         // this.ModLoader.logger.info('Puppet manager activated.');
+
+        this.ModLoader.payloadManager.registerPayloadType(
+            new OverlayPayload('.ovl')
+        );
+
+        let zz = new zzstatic();
+
+        let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
+
+        this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x8000000, zobjbuf) }, 100);
+
     }
 
     onTick(): void {
@@ -861,6 +889,9 @@ export class MmOnline implements IPlugin {
 
         // Need to finish resetting the cycle
         if (this.db.time_reset) return;
+
+        // Handle puppets
+        this.overlord.onTick();
 
         // Sync Specials
         if (this.curScene !== 0x08)
@@ -948,11 +979,13 @@ export class MmOnline implements IPlugin {
     @EventHandler(EventsClient.ON_PLAYER_JOIN)
     onClient_PlayerJoin(nplayer: INetworkPlayer) {
         //this.pMgr.registerPuppet(nplayer);
+        this.overlord.registerPuppet(player);
     }
 
     @EventHandler(EventsClient.ON_PLAYER_LEAVE)
     onClient_PlayerLeave(nplayer: INetworkPlayer) {
         //this.pMgr.unregisterPuppet(nplayer);
+        this.overlord.unregisterPuppet(player);
     }
 
     // #################################################
@@ -2240,4 +2273,155 @@ export class MmOnline implements IPlugin {
     // onClient_SyncPuppet(packet: Net.SyncPuppet) {
     //     this.pMgr.handlePuppet(packet);
     // }
+
+    //------------------------------
+    // Puppet handling
+    //------------------------------
+
+    sendPacketToPlayersInScene(packet: IPacketHeader) {
+        try {
+            let storage: Storage = this.ModLoader.lobbyManager.getLobbyStorage(
+                packet.lobby,
+                this
+            ) as Storage;
+            Object.keys(storage.players).forEach((key: string) => {
+                if (storage.players[key] === storage.players[packet.player.uuid]) {
+                    if (storage.networkPlayerInstances[key].uuid !== packet.player.uuid) {
+                        this.ModLoader.serverSide.sendPacketToSpecificPlayer(
+                            packet,
+                            storage.networkPlayerInstances[key]
+                        );
+                    }
+                }
+            });
+        } catch (err) { }
+    }
+
+    @EventHandler(MMEvents.ON_SCENE_CHANGE)
+    onSceneChange(scene: number, packet: SyncPlayerData) {
+        this.overlord.localPlayerLoadingZone();
+        this.overlord.localPlayerChangingScenes(scene, packet.form);
+        this.ModLoader.clientSide.sendPacket(
+            new SyncPlayerData(
+                this.ModLoader.clientLobby,
+                scene, packet.player, packet.form, true
+            )
+        );
+        this.ModLoader.logger.info('client: I moved to scene ' + scene + '.');
+    }
+
+    @ServerNetworkHandler('MmO_ScenePacket')
+    onSceneChange_server(packet: IPacketHeader) {
+        let storage: Storage = this.ModLoader.lobbyManager.getLobbyStorage(
+            packet.lobby,
+            this
+        ) as Storage;
+    }
+
+    @NetworkHandler('MmO_ScenePacket')
+    onSceneChange_client(packet: SyncPlayerData) {
+        this.overlord.changePuppetScene(packet.player, packet.scene, packet.form);
+        bus.emit(
+            MmOnlineEvents.CLIENT_REMOTE_PLAYER_CHANGED_SCENES,
+            new SyncPlayerData(
+                this.ModLoader.clientLobby,
+                packet.scene, packet.player, packet.form, true
+            )
+        );
+    }
+
+
+    @ServerNetworkHandler('MmO_PuppetPacket')
+    onPuppetData_server(packet: MmO_PuppetPacket) {
+        this.sendPacketToPlayersInScene(packet);
+    }
+
+    @NetworkHandler('MmO_PuppetPacket')
+    onPuppetData_client(packet: MmO_PuppetPacket) {
+        if (
+            this.core.isTitleScreen ||
+            this.core.helper.isPaused() ||
+            this.core.helper.entering_zone()
+        ) {
+            return;
+        }
+        this.overlord.processPuppetPacket(packet);
+    }
+
+    @EventHandler(EventsClient.ON_PAYLOAD_INJECTED)
+    onPayload(evt: any) {
+        if (evt.file === 'link_puppet.ovl') {
+            this.ModLoader.utils.setTimeoutFrames(() => {
+                this.ModLoader.emulator.rdramWrite16(0x600140, evt.result);
+                console.log('Setting link puppet id to ' + evt.result + '.');
+            }, 20);
+        }
+    }
+}
+
+class find_init {
+    constructor() { }
+
+    find(buf: Buffer, locate: string): number {
+        let loc: Buffer = Buffer.from(locate, 'hex');
+        if (buf.indexOf(loc) > -1) {
+            return buf.indexOf(loc);
+        }
+        return -1;
+    }
+}
+
+interface ovl_meta {
+    addr: string;
+    init: string;
+}
+
+export class OverlayPayload extends PayloadType {
+    constructor(ext: string) {
+        super(ext);
+    }
+
+    parse(file: string, buf: Buffer, dest: Buffer) {
+        console.log('Trying to allocate actor...');
+        let overlay_start: number = 0x1AEFD0;
+        let size = 0x02b1;
+        let empty_slots: number[] = new Array<number>();
+        for (let i = 0; i < size; i++) {
+            let entry_start: number = overlay_start + i * 0x20;
+            let _i: number = dest.readUInt32BE(entry_start + 0x14);
+            let total = 0;
+            total += _i;
+            if (total === 0) {
+                empty_slots.push(i);
+            }
+        }
+        console.log(empty_slots.length + ' empty actor slots found.');
+        let finder: find_init = new find_init();
+        let meta: ovl_meta = JSON.parse(
+            fs
+                .readFileSync(
+                    path.join(path.parse(file).dir, path.parse(file).name + '.json')
+                )
+                .toString()
+        );
+        let offset: number = finder.find(buf, meta.init);
+        if (offset === -1) {
+            console.log(
+                'Failed to find spawn parameters for actor ' +
+                path.parse(file).base +
+                '.'
+            );
+            return -1;
+        }
+        let addr: number = parseInt(meta.addr) + offset;
+        let slot: number = empty_slots.shift() as number;
+        console.log(
+            'Assigning ' + path.parse(file).base + ' to slot ' + slot + '.'
+        );
+        dest.writeUInt32BE(0x80000000 + addr, slot * 0x20 + overlay_start + 0x14);
+        buf.writeUInt8(slot, offset + 0x1);
+        buf.copy(dest, parseInt(meta.addr));
+        return slot;
+    }
+
 }
