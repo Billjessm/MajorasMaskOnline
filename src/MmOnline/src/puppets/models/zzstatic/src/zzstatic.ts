@@ -18,7 +18,7 @@ export class zzstatic_cache {
 
   doRepoint(index: number, buf: Buffer): Buffer {
     console.log('Loading ' + this.cache.length + ' repoints from cache.');
-    let rebase = 0x80800000;
+    let rebase = 0x80900000;
     rebase += index * 0x100000;
     for (let i = 0; i < this.cache.length; i++) {
       try {
@@ -74,7 +74,7 @@ export class zzstatic {
     let copy: Buffer = Buffer.alloc(buf.byteLength);
     buf.copy(copy);
     let zobj: Zobj = new Zobj(buf);
-    let rebase = 0x80800000;
+    let rebase = 0x80900000;
     rebase += index * 0x100000;
 
     let zzCache: zzstatic_cache = new zzstatic_cache();

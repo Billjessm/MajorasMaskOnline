@@ -105,6 +105,9 @@ export class MmOnline implements IPlugin {
         // Ensure we have this scene data!
         this.check_db_instance(this.db, scene);
 
+        // Update puppet manager with our info.
+        this.pMgr.localPlayerChangingScenes(scene, this.core.save.current_form);
+
         // Alert scene change!
         this.ModLoader.clientSide.sendPacket(
             new Net.SyncLocation(
@@ -844,6 +847,8 @@ export class MmOnline implements IPlugin {
         let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
         this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x900000, zobjbuf) }, 100);
 
+        //fs.writeFileSync('/home/spiceywolf/Desktop/zobjBuf.zobj', zobjbuf);
+
         // Puppet Manager Inject
         this.pMgr.postinit(
             this.core,
@@ -861,7 +866,7 @@ export class MmOnline implements IPlugin {
                 this.db.game_active) this.reset_session(false);
             return;
         }
-        
+
         // Initializers
         let bufStorage: Buffer;
         let bufData: Buffer;
@@ -877,7 +882,6 @@ export class MmOnline implements IPlugin {
         // General Setup/Handlers
         this.handle_reset_time(scene);
         this.handle_scene_change(scene);
-        // this.handle_puppets(scene);
 
         // Need to finish resetting the cycle
         if (this.db.time_reset) return;
@@ -911,10 +915,10 @@ export class MmOnline implements IPlugin {
 
     @EventHandler(EventsClient.ON_PAYLOAD_INJECTED)
     onPayload(evt: any) {
-        if (evt.file !== 'link_puppet.ovl') return
+        if (evt.file !== 'link.ovl') return
 
         this.ModLoader.utils.setTimeoutFrames(() => {
-            this.ModLoader.emulator.rdramWrite16(0x600140, evt.result);
+            this.ModLoader.emulator.rdramWrite16(0x800000, evt.result);
             console.log('Setting link puppet id to ' + evt.result + '.');
         }, 20);
     }
@@ -1646,25 +1650,25 @@ export class MmOnline implements IPlugin {
         if (packet.scene === 0x6f) sDB.player_resetting[packet.player.uuid] = false;
     }
 
-    // @ServerNetworkHandler('SyncPuppet')
-    // onServer_SyncPuppet(packet: Net.SyncPuppet) {
-    //     let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
-    //     Object.keys(sDB.players).forEach((key: string) => {
-    //         if (sDB.players[key] !== sDB.players[packet.player.uuid]) {
-    //             return;
-    //         }
+    @ServerNetworkHandler('SyncPuppet')
+    onServer_SyncPuppet(packet: Net.SyncPuppet) {
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        Object.keys(sDB.players).forEach((key: string) => {
+            if (sDB.players[key] !== sDB.players[packet.player.uuid]) {
+                return;
+            }
 
-    //         if (!sDB.playerInstances.hasOwnProperty(key)) return;
-    //         if (sDB.playerInstances[key].uuid === packet.player.uuid) {
-    //             return;
-    //         }
+            if (!sDB.playerInstances.hasOwnProperty(key)) return;
+            if (sDB.playerInstances[key].uuid === packet.player.uuid) {
+                return;
+            }
 
-    //         this.ModLoader.serverSide.sendPacketToSpecificPlayer(
-    //             packet,
-    //             sDB.playerInstances[key]
-    //         );
-    //     });
-    // }
+            this.ModLoader.serverSide.sendPacketToSpecificPlayer(
+                packet,
+                sDB.playerInstances[key]
+            );
+        });
+    }
 
     tmp() { }
 
@@ -2275,25 +2279,11 @@ export class MmOnline implements IPlugin {
         this.check_db_instance(this.db, packet.scene);
     }
 
-    // @NetworkHandler('SyncPuppet')
-    // onClient_SyncPuppet(packet: Net.SyncPuppet) {
-    //     this.pMgr.handlePuppet(packet);
-    // }
-
-    //------------------------------
-    // Puppet handling
-    //------------------------------
-
     @NetworkHandler('SyncPuppet')
     onClient_SyncPuppet(packet: Net.SyncPuppet) {
-        if (
-            !this.core.isPlaying() ||
-            this.core.isTitleScreen ||
+        if (!this.core.isPlaying() ||
             this.core.runtime.is_paused() ||
-            this.core.runtime.is_entering_zone()
-        ) {
-            return;
-        }
+            this.core.runtime.is_entering_zone()) return;
         this.pMgr.processPuppetPacket(packet);
     }
 }

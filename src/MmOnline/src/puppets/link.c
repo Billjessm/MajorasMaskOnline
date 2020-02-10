@@ -72,29 +72,6 @@ z64_collider_cylinder_init_t Collision =
     .position = {.x = 0, .y = 0, .z = 0}
 };
 
-static uint32_t getCodeAddress()
-{
-	uint32_t offset = 0;
-	offset = 0x800A5AC0;
-	return offset;
-}
-
-static uint32_t getSkeletonOffset()
-{
-	uint32_t offset = 0;
-	offset = 0x11A350;
-	return offset;
-}
-
-static uint32_t *getPlayerInstancePtr(z64_global_t *global)
-{
-    return get_addr_offset(global, 0x1CCC);
-}
-
-static int8_t copyPlayerAnimFrame(entity_t *en, z64_global_t *global)
-{
-    memcpy(en->current_frame_data, get_addr_offset(0x80400500, 0x0), 0x86);
-}
 
 static void init(entity_t *en, z64_global_t *global)
 {
@@ -102,7 +79,7 @@ static void init(entity_t *en, z64_global_t *global)
 	en->puppetData.age = MM_FORM_HUMAN;
 
 	en->puppetData.playasData.isZZ = 1;
-	uint32_t base = 0x900000;
+	uint32_t base = 0x80900000;
 	en->puppetData.playasData.base = base;
 	uint32_t skele = base + 0x0000500C;
 	uint32_t *seg2 = (uint32_t *)skele;
@@ -127,7 +104,7 @@ static void init(entity_t *en, z64_global_t *global)
 
 	actor_anime_change(&en->skelanime, 0, 0.0, 0.0, 0, 0, 1);
 	actor_set_scale(&en->actor, 0.01f);
-	copyPlayerAnimFrame(en, global);
+	//copyPlayerAnimFrame(en, global);
 	actor_collider_cylinder_init(global, &en->Collision, &en->actor, &Collision);
 
 
@@ -302,14 +279,26 @@ static void play(entity_t *en, z64_global_t *global)
 
 static void otherCallback(z64_global_t *global, uint8_t limb, uint32_t dlist, vec3s_t *rotation, entity_t *en)
 {
-	z64_disp_buf_t *opa = &GFX_POLY_OPA;
+    z64_disp_buf_t *opa = &GFX_POLY_OPA;
+    if (en->puppetData.playasData.isZZ)
+    {
+        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_8, en->puppetData.playasData.eye_texture);
+        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_9, en->puppetData.playasData.base + 0x00004000);
+    }
+    else
+    {
+        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_8, zh_seg2ram(0x009000000));
+        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_9, zh_seg2ram(0x009004000));
+    }
+
+    gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_C, 0x800F7A68);
 
     return 1;
 }
 
 static void draw(entity_t *en, z64_global_t *global)
 {
-    copyPlayerAnimFrame(en, global);
+    //copyPlayerAnimFrame(en, global);
     skelanime_draw_mtx(
         global,
         en->skelanime.limb_index,
@@ -331,7 +320,7 @@ const z64_actor_init_t init_vars = {
     .type = 0x4, 
     .room = 0xFF, 
     .flags = 0x00000001, 
-    .object = OBJ_ID_CHILD, 
+    .object = 1, 
     .instance_size = sizeof(entity_t), 
     .init = init, 
     .dest = destroy, 

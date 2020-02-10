@@ -38,8 +38,7 @@ export class PuppetManager {
 			core.player,
 			core.save,
 			emulator,
-			// The pointer here points to blank space, so should be fine.
-			0x6011e8,
+			0x0,
 			core.commandBuffer,
 			this.mapi
 		);
@@ -218,12 +217,11 @@ export class PuppetManager {
 	onTick(scene: number) {
 		if (this.core.runtime.is_entering_zone()) {
 			this.localPlayerLoadingZone();
-			this.localPlayerChangingScenes(scene, this.core.save.current_form);
 		} else {
 			this.processNewPlayers();
 			this.processAwaitingSpawns();
 			this.lookForStrandedPuppets();
-			//this.lookForMissingPuppets(); // Causing Crashes
+			this.lookForMissingPuppets();
 		}
 		this.sendPuppetPacket();
 	}

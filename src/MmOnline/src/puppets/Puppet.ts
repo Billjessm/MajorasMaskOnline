@@ -65,7 +65,7 @@ export class Puppet {
 			//bus.emit(OotOnlineEvents.PLAYER_PUPPET_PRESPAWN, this);
 			this.commandBuffer.runCommand(
 				Command.SPAWN_ACTOR,
-				0x80600140,
+				0x80800000,
 				(success: boolean, result: number) => {
 					if (success) {
 						console.log(result.toString(16));

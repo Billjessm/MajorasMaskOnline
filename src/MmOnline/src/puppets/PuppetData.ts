@@ -36,7 +36,7 @@ export class PuppetData {
   }
 
   set anim(anim: Buffer) {
-    this.emulator.rdramWriteBuffer(this.pointer + 0x13c, anim);
+    this.emulator.rdramWriteBuffer(this.pointer + 0x144, anim);
   }
 
   get rot(): Buffer {
@@ -44,7 +44,7 @@ export class PuppetData {
   }
 
   set rot(rot: Buffer) {
-    this.emulator.rdramWriteBuffer(this.pointer + 0xb4, rot);
+    this.emulator.rdramWriteBuffer(this.pointer + 0xbc, rot);
   }
 
 
