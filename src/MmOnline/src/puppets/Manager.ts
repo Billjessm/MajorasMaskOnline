@@ -217,6 +217,7 @@ export class PuppetManager {
 	onTick(scene: number) {
 		if (this.core.runtime.is_entering_zone()) {
 			this.localPlayerLoadingZone();
+			
 		} else {
 			this.processNewPlayers();
 			this.processAwaitingSpawns();

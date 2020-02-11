@@ -7,6 +7,8 @@
 #define OBJ_ID_CHILD 0x11
 
 #define get_addr_offset(l, o) ((uint32_t *)((uint32_t)l + (uint32_t)o))
+#define POLY_OPA ZQDL(global, poly_opa)
+#define POLY_XLU ZQDL(global, poly_xlu)
 
 /* Base Offset: 0x06000000 */
 
@@ -72,6 +74,10 @@ z64_collider_cylinder_init_t Collision =
     .position = {.x = 0, .y = 0, .z = 0}
 };
 
+static int8_t copyPlayerAnimFrame(entity_t *en, z64_global_t *global)
+{
+    memcpy(en->current_frame_data, get_addr_offset(0x80400500, 0x0), 0x86);
+}
 
 static void init(entity_t *en, z64_global_t *global)
 {
@@ -79,12 +85,13 @@ static void init(entity_t *en, z64_global_t *global)
 	en->puppetData.age = MM_FORM_HUMAN;
 
 	en->puppetData.playasData.isZZ = 1;
+	
 	uint32_t base = 0x80900000;
 	en->puppetData.playasData.base = base;
 	uint32_t skele = base + 0x0000500C;
 	uint32_t *seg2 = (uint32_t *)skele;
 	en->puppetData.playasData.skeleton = *seg2;
-
+	
 	//en->puppetData.playasData.skeleton = 0x0601E244;
 
 	if (en->puppetData.age == MM_FORM_HUMAN) {
@@ -92,24 +99,24 @@ static void init(entity_t *en, z64_global_t *global)
         Collision.height = 0x0020;
     }
 
-	actor_collider_cylinder_init(global, &en->Collision, &en->actor, &Collision);
-
 	skelanime_init_mtx(
 		global,
 		&en->skelanime,
 		en->puppetData.playasData.skeleton,
-		0,
+		2,
 		0, 0, 0);
 
 
 	actor_anime_change(&en->skelanime, 0, 0.0, 0.0, 0, 0, 1);
+	
 	actor_set_scale(&en->actor, 0.01f);
-	//copyPlayerAnimFrame(en, global);
+	
 	actor_collider_cylinder_init(global, &en->Collision, &en->actor, &Collision);
 
 
-	en->actor.room_index = 0xFF;
-    en->actor.flags = 0x08;
+
+	//en->actor.room_index = 0xFF;
+    //en->actor.flags = 0x08;
 
     en->puppetData.bottleColor.r = 0xFF;
     en->puppetData.bottleColor.g = 0xFF;
@@ -270,6 +277,12 @@ static int MMAnimate(z64_global_t* global, int limb_number, uint32_t* display_li
 
 static void play(entity_t *en, z64_global_t *global)
 {
+	if (en->puppetData.playasData.isZZ)
+    {
+        const uint32_t eyes[3] = {en->puppetData.playasData.base + 0x00000000, en->puppetData.playasData.base + 0x00000800, en->puppetData.playasData.base + 0x00001000};
+        en->puppetData.playasData.eye_texture = eyes[helper_eye_blink(&en->puppetData.playasData.eye_index)];
+    }
+
     actor_collider_cylinder_update(&en->actor, &en->Collision);
     
     actor_collision_check_set_ot(global, AADDR(global, 0x18884), &en->Collision);
@@ -287,8 +300,8 @@ static void otherCallback(z64_global_t *global, uint8_t limb, uint32_t dlist, ve
     }
     else
     {
-        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_8, zh_seg2ram(0x009000000));
-        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_9, zh_seg2ram(0x009004000));
+        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_8, zh_seg2ram(0x06000000));
+        gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_9, zh_seg2ram(0x06004000));
     }
 
     gMoveWd(opa->p++, G_MW_SEGMENT, G_MWO_SEGMENT_C, 0x800F7A68);
@@ -298,7 +311,14 @@ static void otherCallback(z64_global_t *global, uint8_t limb, uint32_t dlist, ve
 
 static void draw(entity_t *en, z64_global_t *global)
 {
-    //copyPlayerAnimFrame(en, global);
+
+	//z64_actor_t* Link = zh_get_player(global);
+
+
+	//copyPlayerAnimFrame(en, global);
+
+	//gDPSetEnvColor(POLY_OPA.p++, en->puppetData.tunicColor.r, en->puppetData.tunicColor.g, en->puppetData.tunicColor.b, en->puppetData.tunicColor.a);
+	//draw_dlist_opa(global, 0x0600C048);
     skelanime_draw_mtx(
         global,
         en->skelanime.limb_index,
@@ -319,7 +339,7 @@ const z64_actor_init_t init_vars = {
     .padding = 0x00, 
     .type = 0x4, 
     .room = 0xFF, 
-    .flags = 0x00000001, 
+    .flags = 0x00002431, 
     .object = 1, 
     .instance_size = sizeof(entity_t), 
     .init = init, 

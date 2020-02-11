@@ -861,11 +861,12 @@ export class MmOnline implements IPlugin {
 
     onTick(): void {
         // Make sure we dont process game when not playing
-        if (!this.core.isPlaying()) {
+        if (!this.core.isPlaying() && this.curScene !== 0x804D && !this.core.runtime.is_entering_zone()) {
             if (this.core.isTitleScreen() &&
                 this.db.game_active) this.reset_session(false);
             return;
         }
+
 
         // Initializers
         let bufStorage: Buffer;
@@ -887,12 +888,20 @@ export class MmOnline implements IPlugin {
         if (this.db.time_reset) return;
 
         // Handle puppets
-        this.pMgr.onTick(scene);
+        
+        if( this.curScene !== 0x804D && this.curScene !== 0x8 && this.core.runtime.scene_frame >= 1 && this.core.isPlaying())
+        {
+            this.pMgr.onTick(scene);
+        }
+        
+
 
         // Sync Specials
         if (this.curScene !== 0x08)
+        {
             this.handle_clock();
-
+        }
+        
         // Sync Flags
         this.handle_cycle_flags(bufData!, bufStorage!);
         this.handle_event_flags(bufData!, bufStorage!);
