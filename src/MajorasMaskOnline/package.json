@@ -7,5 +7,8 @@
   "credits": "denoflions, Maro",
   "license": "GPL3",
   "core": "MajorasMask",
-  "updateUrl": "https://raw.githubusercontent.com/hylian-modding/MajorasMaskOnline/master/update.json"
+  "updateUrl": "https://raw.githubusercontent.com/hylian-modding/MajorasMaskOnline/master/update.json",
+  "modloader64_deps": {
+    "MajorasMask": "https://github.com/hylian-modding/Core-MajorasMask"
+  }
 }

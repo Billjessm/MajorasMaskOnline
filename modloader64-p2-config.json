@@ -1,6 +1,6 @@
 {
   "ModLoader64": {
-    "rom": "MM.z64",
+    "rom": "vanillamiserMM.z64",
     "patch": "",
     "isServer": false,
     "isClient": true,
@@ -8,7 +8,7 @@
       "N64"
     ],
     "selectedConsole": "N64",
-    "coreOverride": "MajorasMask"
+    "coreOverride": ""
   },
   "NetworkEngine.Server": {
     "port": 8082,
@@ -17,8 +17,8 @@
   "NetworkEngine.Client": {
     "ip": "127.0.0.1",
     "port": 8082,
-    "lobby": "mmo",
-    "nickname": "SpiceyWolf",
+    "lobby": "puppettesting",
+    "nickname": "Psi",
     "password": ""
   }
 }
