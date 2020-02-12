@@ -111,7 +111,7 @@ export class MmOnline implements IPlugin {
         if (scene === this.curScene) return;
 
         // Clock can begin functioning
-        if (this.curScene === 0x804d) {
+        if (scene === API.SceneType.CLOCK_TOWN_SOUTH) {
             this.db.clock_init = true;
             this.db.time_reset = false;
         }
@@ -900,9 +900,9 @@ export class MmOnline implements IPlugin {
         // Initializers
         let bufStorage: Buffer;
         let bufData: Buffer;
-        let scene: number = this.core.runtime.get_current_scene();
+        let scene: number = this.core.runtime.get_current_scene() & 0x000000ff;
         let zoning: boolean = this.core.runtime.is_entering_zone();
-        let isSafe: boolean = !(zoning || scene !== 0x08 && scene !== 0x804D)
+        let isSafe: boolean = !(zoning || scene === API.SceneType.VARIOUS_CUTSCENES)
 
         // Safety Check
         if (zoning) scene = -1;
@@ -1608,18 +1608,10 @@ export class MmOnline implements IPlugin {
         let needUpdate: boolean = false;
 
         // Compare major changes
-        if (sDB.clock.current_day !==
-            packet.clock.current_day) needUpdate = true;
-
-        if (sDB.clock.elapsed !==
-            packet.clock.elapsed) needUpdate = true;
-
-        if (sDB.clock.is_night !==
-            packet.clock.is_night) needUpdate = true;
-
-        if (sDB.clock.speed !==
-            packet.clock.speed) needUpdate = true;
-
+        if (sDB.clock.current_day !== packet.clock.current_day) needUpdate = true;
+        if (sDB.clock.elapsed !== packet.clock.elapsed) needUpdate = true;
+        if (sDB.clock.is_night !== packet.clock.is_night) needUpdate = true;
+        if (sDB.clock.speed !== packet.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
 
         if (!needUpdate) return;
@@ -1678,7 +1670,8 @@ export class MmOnline implements IPlugin {
         this.check_db_instance(sDB, packet.scene);
 
         // Determine if safe to receive time data from player again
-        if (packet.scene === 0x6f) sDB.player_resetting[packet.player.uuid] = false;
+        if (packet.scene === API.SceneType.CLOCK_TOWN_SOUTH)
+            sDB.player_resetting[packet.player.uuid] = false;
     }
 
     @ServerNetworkHandler('SyncPuppet')
