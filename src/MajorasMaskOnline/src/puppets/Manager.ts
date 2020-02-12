@@ -14,9 +14,7 @@ export class PuppetManager {
 	private awaiting_spawn: Puppet[] = new Array<Puppet>();
 	fakeClientPuppet!: Puppet;
 	private amIAlone = true;
-	private playersAwaitingPuppets: INetworkPlayer[] = new Array<
-		INetworkPlayer
-	>();
+	private playersAwaitingPuppets: INetworkPlayer[] = new Array<INetworkPlayer>();
 	private mapi!: IModLoaderAPI;
 
 	constructor(logger: ILogger) {
@@ -113,31 +111,30 @@ export class PuppetManager {
 	}
 
 	processNewPlayers() {
-		if (this.playersAwaitingPuppets.length > 0) {
-			let player: INetworkPlayer = this.playersAwaitingPuppets.splice(0, 1)[0];
-			this.puppets.set(
-				player.uuid,
-				new Puppet(
-					player,
-					this.core.player,
-					this.core.save,
-					this.emulator,
-					0x0,
-					this.core.commandBuffer,
-					this.mapi
-				)
-			);
-			this.logger.info(
-				'Player ' +
-				player.nickname +
-				' assigned new puppet ' +
-				this.puppets.get(player.uuid)!.id +
-				'.'
-			);
-			this.mapi.clientSide.sendPacket(
-				new Net.SyncPuppet(this.mapi.clientLobby, this.fakeClientPuppet.data)
-			);
-		}
+		if (this.playersAwaitingPuppets.length < 1) return;
+		let player: INetworkPlayer = this.playersAwaitingPuppets.splice(0, 1)[0];
+		this.puppets.set(
+			player.uuid,
+			new Puppet(
+				player,
+				this.core.player,
+				this.core.save,
+				this.emulator,
+				0x0,
+				this.core.commandBuffer,
+				this.mapi
+			)
+		);
+		this.logger.info(
+			'Player ' +
+			player.nickname +
+			' assigned new puppet ' +
+			this.puppets.get(player.uuid)!.id +
+			'.'
+		);
+		this.mapi.clientSide.sendPacket(
+			new Net.SyncPuppet(this.mapi.clientLobby, this.fakeClientPuppet.data)
+		);
 	}
 
 	processAwaitingSpawns() {
@@ -151,12 +148,9 @@ export class PuppetManager {
 		this.puppets.forEach(
 			(value: Puppet, key: string, map: Map<string, Puppet>) => {
 				if (
-					value.scene !== this.fakeClientPuppet.scene &&
-					value.isSpawned &&
-					!value.isShoveled
-				) {
-					value.shovel();
-				}
+					(value.scene === -1 || value.scene !== this.current_scene) &&
+					value.isSpawned && !value.isShoveled
+				) value.shovel();
 			}
 		);
 	}
@@ -173,11 +167,7 @@ export class PuppetManager {
 				}
 			}
 		);
-		if (check) {
-			this.amIAlone = false;
-		} else {
-			this.amIAlone = true;
-		}
+		this.amIAlone = !check;
 	}
 
 	sendPuppetPacket() {
@@ -189,10 +179,9 @@ export class PuppetManager {
 	}
 
 	processPuppetPacket(packet: Net.SyncPuppet) {
-		if (this.puppets.has(packet.player.uuid)) {
-			let puppet: Puppet = this.puppets.get(packet.player.uuid)!;
-			puppet.processIncomingPuppetData(packet.puppet);
-		}
+		if (this.current_scene === -11 || !this.puppets.has(packet.player.uuid)) return;
+		let puppet: Puppet = this.puppets.get(packet.player.uuid)!;
+		puppet.processIncomingPuppetData(packet.puppet);
 	}
 
 	generateCrashDump() {
@@ -214,11 +203,9 @@ export class PuppetManager {
 		);
 	}
 
-	onTick(scene: number) {
-		if (this.core.runtime.is_entering_zone()) {
-			this.localPlayerLoadingZone();
-			
-		} else {
+	onTick(scene: number, zoning: boolean) {
+		if (zoning || this.current_scene === -1) { this.localPlayerLoadingZone(); }
+		else {
 			this.processNewPlayers();
 			this.processAwaitingSpawns();
 			this.lookForStrandedPuppets();

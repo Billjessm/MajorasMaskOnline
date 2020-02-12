@@ -1,6 +1,6 @@
 import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
-import { PuppetData } from '../puppets/PuppetData'
+import { PuppetData } from '../puppets/Instance'
 import * as DB from './Database';
 
 export class SyncStorage extends Packet {

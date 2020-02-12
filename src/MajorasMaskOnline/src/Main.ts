@@ -861,17 +861,21 @@ export class MmOnline implements IPlugin {
 
     onTick(): void {
         // Make sure we dont process game when not playing
-        if (!this.core.isPlaying() && this.curScene !== 0x804D && !this.core.runtime.is_entering_zone()) {
+        if (!this.core.isPlaying()) {
             if (this.core.isTitleScreen() &&
                 this.db.game_active) this.reset_session(false);
             return;
         }
 
-
         // Initializers
         let bufStorage: Buffer;
         let bufData: Buffer;
-        let scene: number = this.core.runtime.get_current_scene();
+        let scene: number;
+        let zoning: boolean = this.core.runtime.is_entering_zone();
+
+        // Get scene data first
+        if (!zoning) { scene = this.core.runtime.get_current_scene(); }
+        else { scene = -1; }
 
         // Intro skip
         this.handle_intro_flag(scene);
@@ -887,21 +891,16 @@ export class MmOnline implements IPlugin {
         // Need to finish resetting the cycle
         if (this.db.time_reset) return;
 
-        // Handle puppets
-        
-        if( this.curScene !== 0x804D && this.curScene !== 0x8 && this.core.runtime.scene_frame >= 1 && this.core.isPlaying())
-        {
-            this.pMgr.onTick(scene);
-        }
-        
-
-
-        // Sync Specials
-        if (this.curScene !== 0x08)
-        {
+        // Sync Specials (Not cutscene or day transition)
+        if (this.curScene !== 0x08 && this.curScene !== 0x804D) {
             this.handle_clock();
+
+            // Handle puppets
+            if (this.core.runtime.scene_frame >= 1) {
+                this.pMgr.onTick(scene, zoning);
+            }
         }
-        
+
         // Sync Flags
         this.handle_cycle_flags(bufData!, bufStorage!);
         this.handle_event_flags(bufData!, bufStorage!);
@@ -1679,8 +1678,6 @@ export class MmOnline implements IPlugin {
         });
     }
 
-    tmp() { }
-
     // #################################################
     // ##  Client Receive Packets
     // #################################################
@@ -1703,6 +1700,9 @@ export class MmOnline implements IPlugin {
         this.db.clock = packet.clock;
         this.db.map = packet.map;
         this.db.game_active = packet.game_active;
+        
+        let pData = new Packet('Request_Scene', 'MmOnline', this.ModLoader.clientLobby, true);
+        this.ModLoader.clientSide.sendPacket(pData);
     }
 
     @NetworkHandler('SyncConfig')
@@ -2265,16 +2265,18 @@ export class MmOnline implements IPlugin {
     }
 
     // Puppet Tracking
-
     @NetworkHandler('Request_Scene')
     onClient_RequestScene(packet: Packet) {
-        if (this.core.runtime === undefined || !this.core.isPlaying) return;
-        let pData = new Net.SyncLocation(
-            packet.lobby,
-            this.ModLoader.me,
-            this.curScene,
-            this.core.save.current_form
-        );
+        let scene: number = -1;
+        let form: number = 4;
+
+        // Only get in-game values
+        if (!(this.core.runtime === undefined || !this.core.isPlaying)) {
+            scene = this.curScene;
+            form = this.core.save.current_form;
+        }
+
+        let pData = new Net.SyncLocation(packet.lobby, this.ModLoader.me, scene, form);
         this.ModLoader.clientSide.sendPacketToSpecificPlayer(pData, packet.player);
     }
 

@@ -3,7 +3,7 @@ import IMemory from 'modloader64_api/IMemory';
 import { IModLoaderAPI } from 'modloader64_api/IModLoaderAPI';
 import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import { ICommandBuffer, Command } from 'MajorasMask/API/ICommandBuffer';
-import { PuppetData } from './PuppetData';
+import { PuppetData } from './Instance';
 import * as API from 'MajorasMask/API/Imports';
 
 export class Puppet {
@@ -35,7 +35,7 @@ export class Puppet {
 		this.commandBuffer = commandBuffer;
 		this.data = new PuppetData(pointer, emulator, link, save);
 		this.emulator = emulator;
-		this.scene = 81;
+		this.scene = -1;
 		this.Form = 4;
 		this.link = link;
 		this.ModLoader = ModLoader;
@@ -62,7 +62,6 @@ export class Puppet {
 		if (!this.isSpawned && !this.isSpawning) {
 			this.isSpawning = true;
 			this.data.pointer = 0x0;
-			//bus.emit(OotOnlineEvents.PLAYER_PUPPET_PRESPAWN, this);
 			this.commandBuffer.runCommand(
 				Command.SPAWN_ACTOR,
 				0x80800000,
@@ -73,7 +72,6 @@ export class Puppet {
 						console.log('Puppet spawned!');
 						console.log(this.data.pointer.toString(16));
 						this.doNotDespawnMe();
-						//bus.emit(OotOnlineEvents.PLAYER_PUPPET_SPAWNED, this);
 						this.void = this.emulator.rdramReadBuffer(
 							this.data.pointer + 0x24,
 							0xc
@@ -114,7 +112,6 @@ export class Puppet {
 			this.isSpawned = false;
 			this.isShoveled = false;
 			console.log('Puppet ' + this.id + ' despawned.');
-			//bus.emit(OotOnlineEvents.PLAYER_PUPPET_DESPAWNED, this);
 		}
 	}
 }
