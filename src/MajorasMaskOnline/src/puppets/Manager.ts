@@ -1,216 +1,196 @@
-import fs from 'fs';
-import IMemory from 'modloader64_api/IMemory';
-import { INetworkPlayer, LobbyData } from 'modloader64_api/NetworkHandler';
-import { IModLoaderAPI, ILogger } from 'modloader64_api/IModLoaderAPI';
+import { dummy } from './Dummy';
+import { IModLoaderAPI } from 'modloader64_api/IModLoaderAPI';
+import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import { Puppet } from './Puppet';
-import * as Net from '../network/Imports';
+import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
+import IMemory from 'modloader64_api/IMemory';
 import * as API from 'MajorasMask/API/Imports';
+import * as Net from '../network/Imports';
 
 export class PuppetManager {
-	private logger: ILogger;
-	private core!: API.IMMCore;
-	private emulator!: IMemory;
-	private puppets: Map<string, Puppet> = new Map<string, Puppet>();
-	private awaiting_spawn: Puppet[] = new Array<Puppet>();
-	fakeClientPuppet!: Puppet;
-	private amIAlone = true;
-	private playersAwaitingPuppets: INetworkPlayer[] = new Array<INetworkPlayer>();
-	private mapi!: IModLoaderAPI;
+    private emu!: IMemory;
+    private mapi!: IModLoaderAPI;
+    private puppetArray: Puppet[] = [];
+    private playerToPuppetMap: Map<string, number> = new Map<string, number>();
+    private emptyPuppetSlot: number[] = new Array<number>();
+    private awaitingSpawn: Puppet[] = new Array<Puppet>();
+    private awaitingPuppets: INetworkPlayer[] = new Array<INetworkPlayer>();
+    dummy!: Puppet;
 
-	constructor(logger: ILogger) {
-		this.logger = logger;
-	}
+    log(msg: string) {
+        console.info('info:    [Puppet Manager] ' + msg);
+    }
 
-	postinit(
-		core: API.IMMCore,
-		emulator: IMemory,
-		player: INetworkPlayer,
-		mapi: IModLoaderAPI
-	) {
-		this.emulator = emulator;
-		this.core = core;
-		this.mapi = mapi;
+    scene_name(scene: number): string {
+        let val = scene & 0x000000ff;
+        if (val > 0x70) return val.toString(16);
+        else return API.SceneType[val];
+    }
 
-		this.fakeClientPuppet = new Puppet(
-			player,
-			core.player,
-			core.save,
-			emulator,
-			0x0,
-			core.commandBuffer,
-			this.mapi
-		);
-	}
+    postinit(
+        emu: IMemory,
+        core: API.IMMCore,
+        nplayer: INetworkPlayer,
+        mapi: IModLoaderAPI
+    ) {
+        this.emu = emu;
+        this.mapi = mapi;
+        this.dummy = new Puppet(this.emu, core, nplayer, 0x0);
 
-	get current_scene() {
-		return this.fakeClientPuppet.scene;
-	}
+        let pdummy = new Puppet(emu, core, dummy, 0x0);
+        for (let i = 0; i < 8; i++) {
+            this.puppetArray.push(pdummy);
+            this.emptyPuppetSlot.push(i);
+        }
+    }
 
-	localPlayerLoadingZone() {
-		this.puppets.forEach(
-			(value: Puppet, key: string, map: Map<string, Puppet>) => {
-				value.despawn();
-			}
-		);
-		this.awaiting_spawn.splice(0, this.awaiting_spawn.length);
-	}
+    reset() {
+        this.emptyPuppetSlot.length = 0;
+        for (let i = 0; i < this.puppetArray.length; i++) {
+            this.puppetArray[i].scene = -1;
+            this.puppetArray[i].nplayer = dummy;
+            this.puppetArray[i].despawn();
+            this.emptyPuppetSlot.push(i);
+        }
+        this.playerToPuppetMap.clear();
+        this.awaitingSpawn.length = 0;
+        this.awaitingPuppets.length = 0;
+    }
 
-	localPlayerChangingScenes(entering_scene: number, Form: number) {
-		this.awaiting_spawn.splice(0, this.awaiting_spawn.length);
-		this.fakeClientPuppet.scene = entering_scene;
-		this.fakeClientPuppet.Form = Form;
-	}
+    registerPuppet(nplayer: INetworkPlayer) {
+        if (this.playerToPuppetMap.has(nplayer.uuid)) return;
+        this.awaitingPuppets.push(nplayer);
+    }
 
-	registerPuppet(player: INetworkPlayer) {
-		this.logger.info(
-			'Player ' + player.nickname + ' awaiting puppet assignment.'
-		);
-		this.playersAwaitingPuppets.push(player);
-	}
+    unregisterPuppet(nplayer: INetworkPlayer) {
+        if (!this.playerToPuppetMap.has(nplayer.uuid)) return;
+        let index = this.playerToPuppetMap.get(nplayer.uuid)!;
+        let puppet: Puppet = this.puppetArray[index];
+        puppet.despawn();
+        puppet.nplayer = dummy;
+        puppet.scene = -1;
+        this.playerToPuppetMap.delete(nplayer.uuid);
+        this.mapi.logger.info(
+            'Player ' +
+            nplayer.nickname +
+            ' has been removed from puppet management.'
+        );
+        this.emptyPuppetSlot.push(index);
+    }
 
-	unregisterPuppet(player: INetworkPlayer) {
-		if (this.puppets.has(player.uuid)) {
-			let puppet: Puppet = this.puppets.get(player.uuid)!;
-			puppet.despawn();
-			this.puppets.delete(player.uuid);
-		}
-		if (this.playersAwaitingPuppets.length > 0) {
-			let index = -1;
-			for (let i = 0; i < this.playersAwaitingPuppets.length; i++) {
-				if (this.playersAwaitingPuppets[i].uuid === player.uuid) {
-					index = i;
-					break;
-				}
-			}
-			if (index > -1) {
-				this.playersAwaitingPuppets.splice(index, 1);
-			}
-		}
-	}
+    get scene(): number {
+        return this.dummy.scene;
+    }
+    set scene(scene: number) {
+        this.dummy.scene = scene;
+    }
 
-	changePuppetScene(player: INetworkPlayer, entering_scene: number, Form: number) {
-		if (this.puppets.has(player.uuid)) {
-			let puppet = this.puppets.get(player.uuid)!;
-			if (puppet.isSpawned && puppet.Form !== Form) {
-				puppet.despawn();
-			}
-			puppet.scene = entering_scene;
-			puppet.Form = Form;
-			this.logger.info(
-				'Puppet ' + puppet.id + ' moved to scene ' + puppet.scene
-			);
-			if (this.fakeClientPuppet.scene === puppet.scene) {
-				this.logger.info(
-					'Queueing puppet ' + puppet.id + ' for immediate spawning.'
-				);
-				this.awaiting_spawn.push(puppet);
-			}
-		} else {
-			this.logger.info('No puppet found for player ' + player.nickname + '.');
-		}
-	}
+    changePuppetScene(nplayer: INetworkPlayer, scene: number, form: number) {
+        if (!this.playerToPuppetMap.has(nplayer.uuid)) {
+            this.log('No puppet found for nplayer ' + nplayer.nickname + '.');
+            return;
+        }
 
-	processNewPlayers() {
-		if (this.playersAwaitingPuppets.length < 1) return;
-		let player: INetworkPlayer = this.playersAwaitingPuppets.splice(0, 1)[0];
-		this.puppets.set(
-			player.uuid,
-			new Puppet(
-				player,
-				this.core.player,
-				this.core.save,
-				this.emulator,
-				0x0,
-				this.core.commandBuffer,
-				this.mapi
-			)
-		);
-		this.logger.info(
-			'Player ' +
-			player.nickname +
-			' assigned new puppet ' +
-			this.puppets.get(player.uuid)!.id +
-			'.'
-		);
-		this.mapi.clientSide.sendPacket(
-			new Net.SyncPuppet(this.mapi.clientLobby, this.fakeClientPuppet.data)
-		);
-	}
+        let puppet = this.puppetArray[this.playerToPuppetMap.get(nplayer.uuid)!];
+        if (puppet.isSpawned && puppet.form !== form) {
+            puppet.despawn();
+        }
+        puppet.scene = scene;
+        puppet.form = form;
 
-	processAwaitingSpawns() {
-		if (this.awaiting_spawn.length > 0) {
-			let puppet: Puppet = this.awaiting_spawn.shift() as Puppet;
-			puppet.spawn();
-		}
-	}
+        this.log('Puppet moved to scene[' + this.scene_name(puppet.scene) + ']');
+    }
 
-	lookForStrandedPuppets() {
-		this.puppets.forEach(
-			(value: Puppet, key: string, map: Map<string, Puppet>) => {
-				if (
-					(value.scene === -1 || value.scene !== this.current_scene) &&
-					value.isSpawned && !value.isShoveled
-				) value.shovel();
-			}
-		);
-	}
+    handleNewPlayers() {
+        if (this.awaitingPuppets.length < 1) return;
+        if (this.emptyPuppetSlot.length < 1) return;
+        let nplayer: INetworkPlayer = this.awaitingPuppets.splice(0, 1)[0];
+        if (this.playerToPuppetMap.has(nplayer.uuid)) return;
 
-	lookForMissingPuppets() {
-		let check = false;
-		this.puppets.forEach(
-			(value: Puppet, key: string, map: Map<string, Puppet>) => {
-				if (value.scene === this.fakeClientPuppet.scene) {
-					if (!value.isSpawned && this.awaiting_spawn.indexOf(value) === -1) {
-						this.awaiting_spawn.push(value);
-					}
-					check = true;
-				}
-			}
-		);
-		this.amIAlone = !check;
-	}
+        // Insert nplayer.
+        let index = this.emptyPuppetSlot.shift() as number;
+        this.puppetArray[index].nplayer = nplayer;
+        this.playerToPuppetMap.set(nplayer.uuid, index);
+        this.log('Assigned puppet to nplayer ' + nplayer.nickname + '.');
+        this.mapi.clientSide.sendPacket(new Packet('Request_Scene', 'BkOnline', this.mapi.clientLobby, true));
+    }
 
-	sendPuppetPacket() {
-		if (!this.amIAlone) {
-			this.mapi.clientSide.sendPacket(
-				new Net.SyncPuppet(this.mapi.clientLobby, this.fakeClientPuppet.data)
-			);
-		}
-	}
+    handleAwaitingSpawns() {
+        if (this.awaitingSpawn.length < 1) return;
+        while (this.awaitingSpawn.length > 0) {
+            let puppet: Puppet = this.awaitingSpawn.shift() as Puppet;
 
-	processPuppetPacket(packet: Net.SyncPuppet) {
-		if (this.current_scene === -11 || !this.puppets.has(packet.player.uuid)) return;
-		let puppet: Puppet = this.puppets.get(packet.player.uuid)!;
-		puppet.processIncomingPuppetData(packet.puppet);
-	}
+            // Make sure we should still spawn
+            if (this.scene !== -1 && puppet.scene === this.scene) puppet.spawn();
+        }
+    }
 
-	generateCrashDump() {
-		let _puppets: any = {};
-		this.puppets.forEach(
-			(value: Puppet, key: string, map: Map<string, Puppet>) => {
-				_puppets[key] = {
-					isSpawned: value.isSpawned,
-					isSpawning: value.isSpawning,
-					isShoveled: value.isShoveled,
-					pointer: value.data.pointer,
-					player: value.player,
-				};
-			}
-		);
-		fs.writeFileSync(
-			'./PuppetOverlord_crashdump.json',
-			JSON.stringify(_puppets, null, 2)
-		);
-	}
+    puppetsInScene() {
+        let count = 0;
+        let scene = this.scene;
+        for (let i = 0; i < this.puppetArray.length; i++) {
+            if (
+                scene !== -1 && this.puppetArray[i].scene === scene &&
+                this.puppetArray[i].isSpawned
+            ) count++;
+        }
+        return count;
+    }
 
-	onTick(scene: number, zoning: boolean) {
-		if (zoning || this.current_scene === -1) { this.localPlayerLoadingZone(); }
-		else {
-			this.processNewPlayers();
-			this.processAwaitingSpawns();
-			this.lookForStrandedPuppets();
-			this.lookForMissingPuppets();
-		}
-		this.sendPuppetPacket();
-	}
+    handleSpawnState() {
+        let meInScene = this.scene !== -1;
+
+        if (meInScene) {
+            // Perform normal checks.
+            let puppetInScene: boolean;
+            let puppetSpawned: boolean;
+            let scene = this.scene;
+
+            for (let i = 0; i < this.puppetArray.length; i++) {
+                puppetInScene = this.puppetArray[i].scene === scene;
+                puppetSpawned = this.puppetArray[i].isSpawned;
+                if (puppetInScene && !puppetSpawned) {
+                    // Needs Respawned.
+                    this.awaitingSpawn.push(this.puppetArray[i]);
+                } else if (
+                    !puppetInScene && puppetSpawned) {
+                    // Needs Despawned.
+                    this.puppetArray[i].despawn();
+                }
+            }
+        } else {
+            // We aren't in scene, no one should be spawned!
+            for (let i = 0; i < this.puppetArray.length; i++) {
+                if (this.puppetArray[i].isSpawned) {
+                    this.puppetArray[i].despawn();
+                }
+            }
+        }
+    }
+
+    sendPuppet() {
+        let pData = new Net.SyncPuppet(this.mapi.clientLobby, this.dummy.data);
+        this.mapi.clientSide.sendPacket(pData);
+    }
+
+    handlePuppet(packet: Net.SyncPuppet) {
+        if (!this.playerToPuppetMap.has(packet.player.uuid)) {
+            this.registerPuppet(packet.player);
+            return;
+        }
+        let puppet: Puppet = this.puppetArray[
+            this.playerToPuppetMap.get(packet.player.uuid)!
+        ];
+        if (!puppet.canHandle) return;
+        puppet.handleInstance(packet.puppet);
+    }
+
+    onTick() {
+        this.handleNewPlayers();
+        if (this.scene !== -1) {
+            this.handleAwaitingSpawns();
+        }
+        this.sendPuppet();
+        this.handleSpawnState();
+    }
 }

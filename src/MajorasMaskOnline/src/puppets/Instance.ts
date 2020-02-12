@@ -1,48 +1,41 @@
 import IMemory from 'modloader64_api/IMemory';
 import * as API from 'MajorasMask/API/Imports';
 
-export class PuppetData {
-  pointer: number;
-  emulator: IMemory;
-  link: API.IPlayer;
-  save: API.ISaveContext;
+export class Data extends API.BaseObj {
   private readonly copyFields: string[] = new Array<string>();
+  core: API.IMMCore;
+  pointer: number;
 
   constructor(
+    emu: IMemory,
     pointer: number,
-    emulator: IMemory,
-    link: API.IPlayer,
-    save: API.ISaveContext
+    core: API.IMMCore
   ) {
+    super(emu);
     this.pointer = pointer;
-    this.emulator = emulator;
-    this.link = link;
-    this.save = save;
+    this.core = core;
+    this.copyFields.push('anim');
     this.copyFields.push('pos');
     this.copyFields.push('rot');
-    this.copyFields.push('anim');
-  }
-
-  get pos(): Buffer {
-    return this.link.position;
-  }
-
-  set pos(pos: Buffer) {
-    this.emulator.rdramWriteBuffer(this.pointer + 0x24, pos);
   }
 
   get anim(): Buffer {
-    return this.link.anim;
+    return this.core.player.anim;
   }
-
   set anim(anim: Buffer) {
     this.emulator.rdramWriteBuffer(this.pointer + 0x144, anim);
   }
 
-  get rot(): Buffer {
-    return this.link.rotation;
+  get pos(): Buffer {
+    return this.core.player.position;
+  }
+  set pos(pos: Buffer) {
+    this.emulator.rdramWriteBuffer(this.pointer + 0x24, pos);
   }
 
+  get rot(): Buffer {
+    return this.core.player.rotation;
+  }
   set rot(rot: Buffer) {
     this.emulator.rdramWriteBuffer(this.pointer + 0xbc, rot);
   }
@@ -326,7 +319,7 @@ export class PuppetData {
     for (let i = 0; i < this.copyFields.length; i++) {
       jsonObj[this.copyFields[i]] = (this as any)[this.copyFields[i]];
     }
-    //console.log(JSON.stringify(jsonObj, null, 2));
+    
     return jsonObj;
   }
 }

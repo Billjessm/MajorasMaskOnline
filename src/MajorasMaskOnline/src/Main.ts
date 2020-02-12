@@ -26,6 +26,11 @@ import * as Net from './network/Imports';
 import * as Puppet from './puppets/Imports';
 import { zzstatic, zzstatic_cache } from './puppets/models/zzstatic/src/zzstatic';
 
+export interface IConfig {
+    timeless_mode: boolean;
+    print_events: boolean;
+}
+
 export class MmOnline implements IPlugin {
     ModLoader = {} as IModLoaderAPI;
     name = 'MmOnline';
@@ -38,6 +43,18 @@ export class MmOnline implements IPlugin {
     // Helpers
     pMgr!: Puppet.PuppetManager;
     protected curScene: number = -1;
+
+    configPath: string = "./MajorasMaskOnline.json";
+    config: IConfig = {
+        timeless_mode: false,
+        print_events: false
+    };
+
+    scene_name(scene: number): string {
+        let val = scene & 0x000000ff;
+        if (val > 0x70) return val.toString(16);
+        else return API.SceneType[val];
+    }
 
     reset_session(flagsOnly: boolean) {
         if (!flagsOnly) {
@@ -105,9 +122,6 @@ export class MmOnline implements IPlugin {
         // Ensure we have this scene data!
         this.check_db_instance(this.db, scene);
 
-        // Update puppet manager with our info.
-        this.pMgr.localPlayerChangingScenes(scene, this.core.save.current_form);
-
         // Alert scene change!
         this.ModLoader.clientSide.sendPacket(
             new Net.SyncLocation(
@@ -117,7 +131,14 @@ export class MmOnline implements IPlugin {
                 this.core.save.current_form
             )
         );
-        this.ModLoader.logger.info('[Tick] Moved to scene[' + scene + '].');
+        this.ModLoader.logger.info('[Tick] Moved to scene[' + this.scene_name(scene) + '].');
+    }
+
+    handle_puppets(scene: number, isSafe: boolean) {
+        if (!isSafe) scene = -1;
+        this.pMgr.scene = scene;
+
+        if (this.core.runtime.scene_frame > 0) this.pMgr.onTick();
     }
 
     handle_cycle_flags(bufData: Buffer, bufStorage: Buffer) {
@@ -208,6 +229,9 @@ export class MmOnline implements IPlugin {
                 bufData[i] |= bufStorage[i];
                 this.core.save.event_flags.set(i, bufData[i]);
                 needUpdate = true;
+
+                if (this.config.print_events)
+                    this.ModLoader.logger.info("Event: [" + i + "] triggered.");
             }
 
             // Bomber kid exclusion
@@ -730,7 +754,9 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_clock() {
+    handle_clock(scene: number) {
+        if (scene === -1) return;
+
         if (this.db.clock_need_update) {
             // Time sync feature only
             if (!this.db.timeless) {
@@ -836,7 +862,7 @@ export class MmOnline implements IPlugin {
     constructor() { }
 
     preinit(): void {
-        this.pMgr = new Puppet.PuppetManager(this.ModLoader.logger);
+        this.pMgr = new Puppet.PuppetManager();
     }
 
     init(): void { }
@@ -847,16 +873,20 @@ export class MmOnline implements IPlugin {
         let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
         this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x900000, zobjbuf) }, 100);
 
-        //fs.writeFileSync('/home/spiceywolf/Desktop/zobjBuf.zobj', zobjbuf);
-
         // Puppet Manager Inject
         this.pMgr.postinit(
-            this.core,
             this.ModLoader.emulator,
+            this.core,
             this.ModLoader.me,
             this.ModLoader
         );
         this.ModLoader.logger.info('Puppet manager activated.');
+
+        // Load config
+        if (!fs.existsSync(this.configPath))
+            fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+
+        this.config = JSON.parse(fs.readFileSync(this.configPath).toString());
     }
 
     onTick(): void {
@@ -870,12 +900,12 @@ export class MmOnline implements IPlugin {
         // Initializers
         let bufStorage: Buffer;
         let bufData: Buffer;
-        let scene: number;
+        let scene: number = this.core.runtime.get_current_scene();
         let zoning: boolean = this.core.runtime.is_entering_zone();
+        let isSafe: boolean = !(zoning || scene !== 0x08 && scene !== 0x804D)
 
-        // Get scene data first
-        if (!zoning) { scene = this.core.runtime.get_current_scene(); }
-        else { scene = -1; }
+        // Safety Check
+        if (zoning) scene = -1;
 
         // Intro skip
         this.handle_intro_flag(scene);
@@ -887,19 +917,13 @@ export class MmOnline implements IPlugin {
         // General Setup/Handlers
         this.handle_reset_time(scene);
         this.handle_scene_change(scene);
+        this.handle_puppets(scene, isSafe);
 
         // Need to finish resetting the cycle
         if (this.db.time_reset) return;
 
-        // Sync Specials (Not cutscene or day transition)
-        if (this.curScene !== 0x08 && this.curScene !== 0x804D) {
-            this.handle_clock();
-
-            // Handle puppets
-            if (this.core.runtime.scene_frame >= 1) {
-                this.pMgr.onTick(scene, zoning);
-            }
-        }
+        // Sync Specials
+        this.handle_clock(scene);
 
         // Sync Flags
         this.handle_cycle_flags(bufData!, bufStorage!);
@@ -945,13 +969,12 @@ export class MmOnline implements IPlugin {
 
     @EventHandler(EventsClient.CONFIGURE_LOBBY)
     onLobbySetup(lobby: LobbyData): void {
-        lobby.data['MmOnline:timeless_mode'] = false;
     }
 
     @EventHandler(EventsClient.ON_LOBBY_JOIN)
     onClient_LobbyJoin(lobby: LobbyData): void {
         this.db = new Net.DatabaseClient();
-        this.db.timeless = lobby.data['MmOnline:timeless_mode'];
+        this.db.timeless = this.config.timeless_mode;
 
         // Send our storage request to the server
         let pData = new Packet('RequestStorage', 'MmOnline', this.ModLoader.clientLobby, false);
@@ -984,7 +1007,7 @@ export class MmOnline implements IPlugin {
 
     @EventHandler(EventsClient.ON_SERVER_CONNECTION)
     onClient_ServerConnection(evt: any) {
-        //this.pMgr.reset();
+        this.pMgr.reset();
         if (this.core.runtime === undefined || !this.core.isPlaying()) return;
         let pData = new Net.SyncLocation(
             this.ModLoader.clientLobby,
@@ -1648,7 +1671,7 @@ export class MmOnline implements IPlugin {
     onServer_SyncLocation(packet: Net.SyncLocation) {
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
         let pMsg = 'Player[' + packet.player.nickname + ']';
-        let sMsg = 'Scene[' + packet.scene + ']';
+        let sMsg = 'Scene[' + this.scene_name(packet.scene) + ']';
         sDB.players[packet.player.uuid] = packet.scene;
         this.ModLoader.logger.info('[Server] Received: {Player Scene}');
         this.ModLoader.logger.info('[Server] Updated: ' + pMsg + ' to ' + sMsg);
@@ -1700,9 +1723,6 @@ export class MmOnline implements IPlugin {
         this.db.clock = packet.clock;
         this.db.map = packet.map;
         this.db.game_active = packet.game_active;
-        
-        let pData = new Packet('Request_Scene', 'MmOnline', this.ModLoader.clientLobby, true);
-        this.ModLoader.clientSide.sendPacket(pData);
     }
 
     @NetworkHandler('SyncConfig')
@@ -2283,7 +2303,7 @@ export class MmOnline implements IPlugin {
     @NetworkHandler('SyncLocation')
     onClient_SyncLocation(packet: Net.SyncLocation) {
         let pMsg = 'Player[' + packet.player.nickname + ']';
-        let sMsg = 'Scene[' + packet.scene + ']';
+        let sMsg = 'Scene[' + this.scene_name(packet.scene) + ']';
         this.pMgr.changePuppetScene(packet.player, packet.scene, packet.form);
         this.ModLoader.logger.info('[Client] Received: {Player Scene}');
         this.ModLoader.logger.info('[Client] Updated: ' + pMsg + ' to ' + sMsg);
@@ -2295,7 +2315,7 @@ export class MmOnline implements IPlugin {
         if (!this.core.isPlaying() ||
             this.core.runtime.is_paused() ||
             this.core.runtime.is_entering_zone()) return;
-        this.pMgr.processPuppetPacket(packet);
+        this.pMgr.handlePuppet(packet);
     }
 }
 

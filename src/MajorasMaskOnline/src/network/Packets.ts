@@ -1,7 +1,7 @@
 import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import { Packet, UDPPacket } from 'modloader64_api/ModLoaderDefaultImpls';
-import { PuppetData } from '../puppets/Instance'
 import * as DB from './Database';
+import * as PData from '../puppets/Instance'
 
 export class SyncStorage extends Packet {
     cycle_flags: Buffer;
@@ -178,9 +178,8 @@ export class SyncTimeReset extends Packet {
 // #################################################
 
 export class SyncPuppet extends UDPPacket {
-    // puppet: PData.IData;
-    puppet: PuppetData;
-    constructor(lobby: string, puppet: PuppetData) {
+    puppet: PData.Data;
+    constructor(lobby: string, puppet: PData.Data) {
         super('SyncPuppet', 'MmOnline', lobby, false);
         this.puppet = puppet;
     }

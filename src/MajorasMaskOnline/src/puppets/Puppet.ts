@@ -1,117 +1,118 @@
-import uuid from 'uuid';
-import IMemory from 'modloader64_api/IMemory';
-import { IModLoaderAPI } from 'modloader64_api/IModLoaderAPI';
-import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
 import { ICommandBuffer, Command } from 'MajorasMask/API/ICommandBuffer';
-import { PuppetData } from './Instance';
+import { INetworkPlayer } from 'modloader64_api/NetworkHandler';
+import IMemory from 'modloader64_api/IMemory';
+import uuid from 'uuid';
 import * as API from 'MajorasMask/API/Imports';
+import * as PData from './Instance';
 
-export class Puppet {
-	player: INetworkPlayer;
+export class Puppet extends API.BaseObj {
+	core: API.IMMCore;
+	nplayer: INetworkPlayer;
+	data: PData.Data;
 	id: string;
-	data: PuppetData;
-	commandBuffer: ICommandBuffer;
-	emulator: IMemory;
-	isSpawned = false;
-	isSpawning = false;
-	isShoveled = false;
 	scene: number;
-	Form: number;
-	link: API.IPlayer;
+	form: API.FormType;
+	canHandle = false;
+	isSpawned = false;
+	isShoveled = false;
 	void!: Buffer;
-	ModLoader: IModLoaderAPI;
 
-	constructor(
-		player: INetworkPlayer,
-		link: API.IPlayer,
-		save: API.ISaveContext,
-		emulator: IMemory,
-		pointer: number,
-		commandBuffer: ICommandBuffer,
-		ModLoader: IModLoaderAPI
-	) {
-		this.player = player;
-		this.id = uuid.v4();
-		this.commandBuffer = commandBuffer;
-		this.data = new PuppetData(pointer, emulator, link, save);
-		this.emulator = emulator;
-		this.scene = -1;
-		this.Form = 4;
-		this.link = link;
-		this.ModLoader = ModLoader;
+	log(msg: string) {
+		console.info('info:    [Puppet] ' + msg);
 	}
 
-	debug_movePuppetToPlayer() {
-		let t = JSON.stringify(this.data);
-		let copy = JSON.parse(t);
-		Object.keys(copy).forEach((key: string) => {
-			(this.data as any)[key] = copy[key];
+	constructor(
+		emu: IMemory,
+		core: API.IMMCore,
+		nplayer: INetworkPlayer,
+		pointer: number
+	) {
+		super(emu);
+		this.data = new PData.Data(emu, pointer, core);
+		this.core = core;
+		this.nplayer = nplayer;
+		this.id = uuid.v4();
+		this.scene = -1;
+		this.form = API.FormType.HUMAN;
+	}
+
+	handleInstance(data: PData.Data) {
+		if (!this.isSpawned || !this.canHandle || this.isShoveled) return;
+		Object.keys(data).forEach((key: string) => {
+			(this.data as any)[key] = (data as any)[key];
 		});
 	}
 
-	doNotDespawnMe() {
-		this.emulator.rdramWrite8(this.data.pointer + 0x3, 0xff);
+	disable_despawn() {
+		let ptr = this.data.pointer;
+		this.emulator.rdramWrite8(ptr + 0x3, 0xff);
+		this.void = this.emulator.rdramReadBuffer(ptr + 0x24, 0xc);
 	}
 
 	spawn() {
-		if (this.isShoveled) {
-			this.isShoveled = false;
-			console.log('Puppet resurrected.');
-			return;
-		}
-		if (!this.isSpawned && !this.isSpawning) {
-			this.isSpawning = true;
-			this.data.pointer = 0x0;
-			this.commandBuffer.runCommand(
-				Command.SPAWN_ACTOR,
-				0x80800000,
-				(success: boolean, result: number) => {
-					if (success) {
-						console.log(result.toString(16));
-						this.data.pointer = result & 0x00ffffff;
-						console.log('Puppet spawned!');
-						console.log(this.data.pointer.toString(16));
-						this.doNotDespawnMe();
-						this.void = this.emulator.rdramReadBuffer(
-							this.data.pointer + 0x24,
-							0xc
-						);
-						this.isSpawned = true;
-						this.isSpawning = false;
-					}
-				}
-			);
-		}
-	}
+		this.isSpawned = (this.data.pointer !== 0x000000);
+		this.canHandle = false;
 
-	processIncomingPuppetData(data: PuppetData) {
-		if (this.isSpawned && !this.isShoveled) {
-			Object.keys(data).forEach((key: string) => {
-				(this.data as any)[key] = (data as any)[key];
-			});
-		}
-	}
-
-	shovel() {
 		if (this.isSpawned) {
-			if (this.data.pointer > 0) {
-				this.emulator.rdramWriteBuffer(this.data.pointer + 0x24, this.void);
-				console.log('Puppet ' + this.id + ' shoveled.');
-				this.isShoveled = true;
+			this.canHandle = true;
+
+			if (this.isShoveled) {
+				this.isShoveled = false;
+				this.log('Puppet resurrected! ' +
+					this.data.pointer.toString(16).toUpperCase());
 			}
+
+			return;
+		} else {
+			this.data.pointer = 0x000000;
+			this.isShoveled = false;
 		}
+
+		this.core.commandBuffer.runCommand(
+			Command.SPAWN_ACTOR,
+			0x80800000,
+			(success: boolean, result: number) => {
+				if (!success) {
+					this.log('Spawn Failed');
+					return;
+				}
+
+				let ptr = result & 0x00ffffff
+				this.data.pointer = ptr;
+				this.disable_despawn();
+                this.isSpawned = true;
+				this.canHandle = true;
+
+				this.log('Puppet spawned! ' + ptr.toString(16).toUpperCase());
+			}
+		);
+
 	}
 
 	despawn() {
-		if (this.isSpawned) {
-			if (this.data.pointer > 0) {
-				this.emulator.rdramWrite32(this.data.pointer + 0x130, 0x0);
-				this.emulator.rdramWrite32(this.data.pointer + 0x134, 0x0);
-				this.data.pointer = 0;
-			}
-			this.isSpawned = false;
-			this.isShoveled = false;
-			console.log('Puppet ' + this.id + ' despawned.');
-		}
+		this.isSpawned = (this.data.pointer !== 0x000000);
+		this.canHandle = false;
+		this.isShoveled = false;
+
+		if (!this.isSpawned) return;
+
+		this.emulator.rdramWrite32(this.data.pointer + 0x130, 0x0);
+		this.emulator.rdramWrite32(this.data.pointer + 0x134, 0x0);
+		this.data.pointer = 0x000000;
+		this.isSpawned = false;
+
+		this.log('Puppet ' + this.id + ' despawned.');
+	}
+
+	shovel() {
+		this.isSpawned = (this.data.pointer !== 0x000000);
+		this.canHandle = false;
+
+		if (!this.isSpawned) return;
+
+		this.emulator.rdramWriteBuffer(this.data.pointer + 0x24, this.void);
+		this.isShoveled = true;
+
+		this.log('Puppet ' + this.id + ' shoveled.');
 	}
 }
