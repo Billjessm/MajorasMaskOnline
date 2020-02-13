@@ -108,7 +108,7 @@ export class Puppet extends API.BaseObj {
 		this.isSpawned = (this.data.pointer !== 0x000000);
 		this.canHandle = false;
 
-		if (!this.isSpawned) return;
+		if (!this.isSpawned || this.isShoveled) return;
 
 		this.emulator.rdramWriteBuffer(this.data.pointer + 0x24, this.void);
 		this.isShoveled = true;

@@ -24,6 +24,9 @@ export class Database {
     // Has Started Game Check
     game_active: boolean = false;
 
+    // Prevent duplicate day increments on clock
+    time_card_state: number = 0;
+
     // Config Settings
     timeless: boolean = false;
 }

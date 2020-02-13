@@ -37,8 +37,8 @@ export class PuppetManager {
         this.mapi = mapi;
         this.dummy = new Puppet(this.emu, core, nplayer, 0x0);
 
-        let pdummy = new Puppet(emu, core, dummy, 0x0);
         for (let i = 0; i < 8; i++) {
+            let pdummy = new Puppet(emu, core, dummy, 0x0);
             this.puppetArray.push(pdummy);
             this.emptyPuppetSlot.push(i);
         }
@@ -98,7 +98,8 @@ export class PuppetManager {
         puppet.scene = scene;
         puppet.form = form;
 
-        this.log('Puppet moved to scene[' + this.scene_name(puppet.scene) + ']');
+        if (puppet.scene !== API.SceneType.NONE)
+            this.log('Puppet moved to scene[' + this.scene_name(puppet.scene) + ']');
     }
 
     handleNewPlayers() {
@@ -112,7 +113,7 @@ export class PuppetManager {
         this.puppetArray[index].nplayer = nplayer;
         this.playerToPuppetMap.set(nplayer.uuid, index);
         this.log('Assigned puppet to nplayer ' + nplayer.nickname + '.');
-        this.mapi.clientSide.sendPacket(new Packet('Request_Scene', 'BkOnline', this.mapi.clientLobby, true));
+        this.mapi.clientSide.sendPacket(new Packet('Request_Scene', 'MmOnline', this.mapi.clientLobby, true));
     }
 
     handleAwaitingSpawns() {
@@ -152,10 +153,9 @@ export class PuppetManager {
                 if (puppetInScene && !puppetSpawned) {
                     // Needs Respawned.
                     this.awaitingSpawn.push(this.puppetArray[i]);
-                } else if (
-                    !puppetInScene && puppetSpawned) {
+                } else if (!puppetInScene && puppetSpawned) {
                     // Needs Despawned.
-                    this.puppetArray[i].despawn();
+                    this.puppetArray[i].shovel();
                 }
             }
         } else {

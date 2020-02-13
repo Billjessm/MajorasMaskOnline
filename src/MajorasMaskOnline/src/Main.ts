@@ -81,7 +81,7 @@ export class MmOnline implements IPlugin {
         if (scene === this.curScene) return;
 
         // Make sure we are on cutscene map
-        if (scene !== 0x08) return;
+        if (scene !== API.SceneType.VARIOUS_CUTSCENES) return;
 
         // Make sure we are invoking ocarina reset time
         if (this.core.runtime.cutscene_ptr !== 0x8072d7d0) return;
@@ -107,14 +107,26 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_scene_change(scene: number) {
+    handle_scene_change(scene: number, timeCard: boolean) {
         if (scene === this.curScene) return;
 
         // Clock can begin functioning
-        if (scene === API.SceneType.CLOCK_TOWN_SOUTH) {
+        if (timeCard) {
             this.db.clock_init = true;
             this.db.time_reset = false;
         }
+
+        // Prevent double time push
+        if (timeCard && this.db.time_card_state === 1)
+            this.db.time_card_state = 2;
+        else if (this.db.time_card_state === 2)
+            this.db.time_card_state = 0;
+        else if (this.db.time_card_state === 3 && scene !== -1)
+            this.db.time_card_state = 4;
+        else if (timeCard && this.db.time_card_state === 4)
+            this.db.time_card_state = 5;
+        else if (!timeCard && this.db.time_card_state === 5)
+            this.db.time_card_state = 0;
 
         // Set global to current scene value
         this.curScene = scene;
@@ -131,7 +143,9 @@ export class MmOnline implements IPlugin {
                 this.core.save.current_form
             )
         );
-        this.ModLoader.logger.info('[Tick] Moved to scene[' + this.scene_name(scene) + '].');
+
+        if (scene !== -1)
+            this.ModLoader.logger.info('[Tick] Moved to scene[' + this.scene_name(scene) + '].');
     }
 
     handle_puppets(scene: number, isSafe: boolean) {
@@ -352,7 +366,7 @@ export class MmOnline implements IPlugin {
 
         if (stateData < stateStorage) {
             // Make sure we are on cutscene map
-            if (scene !== 0x08) return;
+            if (scene !== API.SceneType.VARIOUS_CUTSCENES) return;
             if (this.db.intro_buffer < 20) {
                 this.db.intro_buffer += 1;
                 return;
@@ -755,11 +769,11 @@ export class MmOnline implements IPlugin {
     }
 
     handle_clock(scene: number) {
-        if (scene === -1) return;
-
         if (this.db.clock_need_update) {
             // Time sync feature only
             if (!this.db.timeless) {
+                this.core.save.clock.current_day = this.db.clock.current_day;
+                this.core.save.clock.elapsed = this.db.clock.elapsed;
                 this.core.save.clock.current_day = this.db.clock.current_day;
                 this.core.save.clock.elapsed = this.db.clock.elapsed;
                 this.core.save.clock.is_night = this.db.clock.is_night;
@@ -770,6 +784,19 @@ export class MmOnline implements IPlugin {
             this.db.clock_need_update = false;
             return;
         }
+
+        // Wait for time card transition
+        if (this.db.time_card_state === 1 ||
+            this.db.time_card_state === 2) {
+            this.db.clock_need_update = true;
+            return;
+        }
+
+        if (this.db.time_card_state === 3 ||
+            this.db.time_card_state === 4 ||
+            this.db.time_card_state === 5)
+            this.db.time_card_state = 0; // placeholder
+        //this.db.clock_need_update = true;
 
         // Time sync feature only
         if (this.db.timeless) return;
@@ -786,6 +813,7 @@ export class MmOnline implements IPlugin {
         let timeStorage = Math.floor(this.db.clock.time / 0x1000);
         let is_night: boolean = this.core.save.clock.is_night;
         let needUpdate: boolean = false;
+        let dayChange: boolean = false;
 
         let clock = new Net.ClockData();
         clock.current_day = cur_day;
@@ -807,27 +835,40 @@ export class MmOnline implements IPlugin {
                 this.db.cycle_bak = this.core.save.cycle_flags.get_all();
                 this.db.event_bak = this.core.save.event_flags.get_all();
             }
-
         }
 
         // Compare major changes
-        if (cur_day !== this.db.clock.current_day) needUpdate = true;
-        if (elapsed !== this.db.clock.elapsed) needUpdate = true;
+        if (cur_day !== this.db.clock.current_day) {
+            needUpdate = true;
+            dayChange = true;
+        }
+        if (elapsed !== this.db.clock.elapsed) {
+            needUpdate = true;
+            dayChange = true;
+        }
         if (is_night !== this.db.clock.is_night) needUpdate = true;
         if (speed !== this.db.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
 
-        // Process Changes
-        if (!needUpdate) {
-            this.db.clock_live = clock;
-            return;
-        }
-
-        this.db.clock = clock;
+        // Save live clock
         this.db.clock_live = clock;
 
+        // Process Changes
+        if (!needUpdate) return;
+
+        // Process time card
+        if (dayChange && this.core.isPlaying() &&
+            this.curScene !== -1 && this.curScene !== 0x08 &&
+            this.db.time_card_state === 0)
+            this.db.time_card_state = 1;
+
+        // Save time
+        this.db.clock = clock;
+
+        // Send time
         pData = new Net.SyncClock(this.ModLoader.clientLobby, clock);
         this.ModLoader.clientSide.sendPacket(pData);
+
     }
 
     handle_map() {
@@ -902,10 +943,12 @@ export class MmOnline implements IPlugin {
         let bufData: Buffer;
         let scene: number = this.core.runtime.get_current_scene() & 0x000000ff;
         let zoning: boolean = this.core.runtime.is_entering_zone();
-        let isSafe: boolean = !(zoning || scene === API.SceneType.VARIOUS_CUTSCENES)
+        let timeCard: boolean = this.core.runtime.get_current_scene() === 0x804d;
+        let isSafe: boolean = !(zoning || timeCard ||
+            scene === API.SceneType.VARIOUS_CUTSCENES)
 
         // Safety Check
-        if (zoning) scene = -1;
+        if (zoning || timeCard) scene = -1;
 
         // Intro skip
         this.handle_intro_flag(scene);
@@ -916,7 +959,7 @@ export class MmOnline implements IPlugin {
 
         // General Setup/Handlers
         this.handle_reset_time(scene);
-        this.handle_scene_change(scene);
+        this.handle_scene_change(scene, timeCard);
         this.handle_puppets(scene, isSafe);
 
         // Need to finish resetting the cycle
@@ -1101,7 +1144,14 @@ export class MmOnline implements IPlugin {
         });
 
         // Pull game/time data
-        sDB.clock = packet.clock;
+        //sDB.clock = packet.clock;
+        sDB.clock.current_day = 1;
+        sDB.clock.elapsed = 1;
+        sDB.clock.is_night = false;
+        sDB.clock.speed = 0;
+        sDB.clock.time = 16000;
+        sDB.clock.is_started = true;
+
         sDB.cycle_flags = packet.cycle;
         sDB.event_flags = packet.events;
         Object.keys(sDB.scene_data).forEach((key: string) => {
@@ -1665,12 +1715,16 @@ export class MmOnline implements IPlugin {
         let pMsg = 'Player[' + packet.player.nickname + ']';
         let sMsg = 'Scene[' + this.scene_name(packet.scene) + ']';
         sDB.players[packet.player.uuid] = packet.scene;
-        this.ModLoader.logger.info('[Server] Received: {Player Scene}');
-        this.ModLoader.logger.info('[Server] Updated: ' + pMsg + ' to ' + sMsg);
+
+        if (packet.scene !== -1) {
+            this.ModLoader.logger.info('[Server] Received: {Player Scene}');
+            this.ModLoader.logger.info('[Server] Updated: ' + pMsg + ' to ' + sMsg);
+        }
+
         this.check_db_instance(sDB, packet.scene);
 
         // Determine if safe to receive time data from player again
-        if (packet.scene === API.SceneType.CLOCK_TOWN_SOUTH)
+        if (packet.scene === API.SceneType.VARIOUS_CUTSCENES)
             sDB.player_resetting[packet.player.uuid] = false;
     }
 
@@ -1771,10 +1825,20 @@ export class MmOnline implements IPlugin {
             this.db.clock_need_update = true;
 
             if (this.core.isPlaying()) {
-                this.curScene = 0x08;
+                this.db.time_card_state = 3;
                 this.core.runtime.goto_scene(0x0000D800);
             }
         }
+
+        this.curScene = API.SceneType.VARIOUS_CUTSCENES;
+        this.ModLoader.clientSide.sendPacket(
+            new Net.SyncLocation(
+                this.ModLoader.clientLobby,
+                this.ModLoader.me,
+                API.SceneType.VARIOUS_CUTSCENES,
+                this.core.save.current_form
+            )
+        );
     }
 
     @NetworkHandler('SyncCycleFlags')
@@ -2224,23 +2288,28 @@ export class MmOnline implements IPlugin {
         let timeData = Math.floor(this.db.clock.time / 0x1000);
         let timeStorage = Math.floor(packet.clock.time / 0x1000);
         let needUpdate: boolean = false;
+        let dayChange: boolean = false;
 
         // Compare major changes
-        if (this.db.clock.current_day !==
-            packet.clock.current_day) needUpdate = true;
-
-        if (this.db.clock.elapsed !==
-            packet.clock.elapsed) needUpdate = true;
-
-        if (this.db.clock.is_night !==
-            packet.clock.is_night) needUpdate = true;
-
-        if (this.db.clock.speed !==
-            packet.clock.speed) needUpdate = true;
-
+        if (this.db.clock.current_day !== packet.clock.current_day) {
+            needUpdate = true;
+            dayChange = true;
+        }
+        if (this.db.clock.elapsed !== packet.clock.elapsed) {
+            needUpdate = true;
+            dayChange = true;
+        }
+        if (this.db.clock.is_night !== packet.clock.is_night) needUpdate = true;
+        if (this.db.clock.speed !== packet.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
 
         if (!needUpdate) return;
+
+        // Process time card
+        if (dayChange && this.core.isPlaying() &&
+            this.curScene !== -1 && this.curScene !== 0x08 &&
+            this.db.time_card_state === 0)
+            this.db.time_card_state = 1;
 
         this.db.clock = packet.clock;
         this.db.clock_live = packet.clock;
@@ -2298,8 +2367,12 @@ export class MmOnline implements IPlugin {
         let pMsg = 'Player[' + packet.player.nickname + ']';
         let sMsg = 'Scene[' + this.scene_name(packet.scene) + ']';
         this.pMgr.changePuppetScene(packet.player, packet.scene, packet.form);
-        this.ModLoader.logger.info('[Client] Received: {Player Scene}');
-        this.ModLoader.logger.info('[Client] Updated: ' + pMsg + ' to ' + sMsg);
+
+        if (packet.scene !== API.SceneType.NONE) {
+            this.ModLoader.logger.info('[Client] Received: {Player Scene}');
+            this.ModLoader.logger.info('[Client] Updated: ' + pMsg + ' to ' + sMsg);
+        }
+
         this.check_db_instance(this.db, packet.scene);
     }
 
