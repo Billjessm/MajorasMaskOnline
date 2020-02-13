@@ -56,7 +56,7 @@ export class Data extends API.BaseObj {
 
   get tunic_colorB(): Buffer {
     let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
-    return this.emulator.romReadBuffer(tunic_color_addr+ 0x2, 0x1);
+    return this.emulator.rdramReadBuffer(tunic_color_addr+ 0x2, 0x1);
   }
 
   get tunic_colorA(): Buffer {
