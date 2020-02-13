@@ -45,9 +45,9 @@ typedef struct
 {
 	z64_actor_t actor;
 	uint8_t current_frame_data[0x86];
+	z_link_puppet puppetData;
 	z64_skelanime_t skelanime;
 	z64_collider_cylinder_main_t Collision;
-	z_link_puppet puppetData;
 } entity_t;
 
 z64_collider_cylinder_init_t Collision =
@@ -122,6 +122,11 @@ static void init(entity_t *en, z64_global_t *global)
     en->puppetData.bottleColor.g = 0xFF;
     en->puppetData.bottleColor.b = 0xFF;
     en->puppetData.bottleColor.a = 0xFF;
+
+	en->puppetData.tunicColor.r = 0xDE;
+    en->puppetData.tunicColor.g = 0xAD;
+    en->puppetData.tunicColor.b = 0xBE;
+    en->puppetData.tunicColor.a = 0xEF;
 
 }
 
@@ -317,7 +322,7 @@ static void draw(entity_t *en, z64_global_t *global)
 
 	//copyPlayerAnimFrame(en, global);
 
-	//gDPSetEnvColor(POLY_OPA.p++, en->puppetData.tunicColor.r, en->puppetData.tunicColor.g, en->puppetData.tunicColor.b, en->puppetData.tunicColor.a);
+	gDPSetEnvColor(POLY_OPA.p++, en->puppetData.tunicColor.r, en->puppetData.tunicColor.g, en->puppetData.tunicColor.b, en->puppetData.tunicColor.a);
 	//draw_dlist_opa(global, 0x0600C048);
     skelanime_draw_mtx(
         global,

@@ -17,13 +17,17 @@ export class Data extends API.BaseObj {
     this.copyFields.push('anim');
     this.copyFields.push('pos');
     this.copyFields.push('rot');
+    this.copyFields.push('tunic_colorR');
+    this.copyFields.push('tunic_colorG');
+    this.copyFields.push('tunic_colorB');
+    this.copyFields.push('tunic_colorA');
   }
 
   get anim(): Buffer {
     return this.core.player.anim;
   }
   set anim(anim: Buffer) {
-    this.emulator.rdramWriteBuffer(this.pointer + 0x144, anim);
+    this.emulator.rdramWriteBuffer(this.pointer + 0x144, this.anim);
   }
 
   get pos(): Buffer {
@@ -40,6 +44,43 @@ export class Data extends API.BaseObj {
     this.emulator.rdramWriteBuffer(this.pointer + 0xbc, rot);
   }
 
+  get tunic_colorR(): Buffer {
+    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
+    return this.emulator.rdramReadBuffer(tunic_color_addr, 0x1);
+  }
+
+  get tunic_colorG(): Buffer {
+    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
+    return this.emulator.rdramReadBuffer(tunic_color_addr + 0x1, 0x1);
+  }
+
+  get tunic_colorB(): Buffer {
+    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
+    return this.emulator.romReadBuffer(tunic_color_addr+ 0x2, 0x1);
+  }
+
+  get tunic_colorA(): Buffer {
+    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
+    return this.emulator.rdramReadBuffer(tunic_color_addr + 0x3, 0x1);
+  }
+  
+  set tunic_colorR(buf: Buffer) {
+      this.emulator.rdramWriteBuffer(this.pointer + 0x1CA, this.tunic_colorR);
+  }
+
+  set tunic_colorG(buf: Buffer) {
+      this.emulator.rdramWriteBuffer(this.pointer + 0x1CB, this.tunic_colorG);
+  }
+
+  set tunic_colorB(buf: Buffer) {
+      this.emulator.rdramWriteBuffer(this.pointer + 0x1CC, this.tunic_colorB);
+  }
+
+  set tunic_colorA(buf: Buffer) {
+      this.emulator.rdramWriteBuffer(this.pointer + 0x1CD, this.tunic_colorA);
+  }
+
+
 
   /*get sound(): number {
     let id = this.link.current_sound_id;
@@ -49,15 +90,6 @@ export class Data extends API.BaseObj {
 
   set sound(s: number) {
     this.emulator.rdramWrite16(this.pointer + 0x27e, s);
-  }
-
-  get tunic_color(): Buffer {
-    let addr = 0x000f7ad8 + this.link.tunic * 3;
-    return this.emulator.rdramReadBuffer(addr, 0x3);
-  }
-
-  set tunic_color(buf: Buffer) {
-    this.emulator.rdramWriteBuffer(this.pointer + 0x252, buf);
   }
 
   get strength_upgrade(): number {
