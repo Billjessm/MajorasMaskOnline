@@ -1,15 +1,19 @@
 import IMemory from 'modloader64_api/IMemory';
+import { IRomMemory } from 'modloader64_api/IRomMemory';
 import * as API from 'MajorasMask/API/Imports';
+import { IModLoaderAPI } from 'modloader64_api/IModLoaderAPI';
 
 export class Data extends API.BaseObj {
   private readonly copyFields: string[] = new Array<string>();
   core: API.IMMCore;
   pointer: number;
+    
 
   constructor(
     emu: IMemory,
     pointer: number,
-    core: API.IMMCore
+    core: API.IMMCore,
+    
   ) {
     super(emu);
     this.pointer = pointer;
@@ -17,12 +21,9 @@ export class Data extends API.BaseObj {
     this.copyFields.push('anim');
     this.copyFields.push('pos');
     this.copyFields.push('rot');
-    this.copyFields.push('tunic_colorR');
-    this.copyFields.push('tunic_colorG');
-    this.copyFields.push('tunic_colorB');
-    this.copyFields.push('tunic_colorA');
+    this.copyFields.push('tunic_color');
   }
-
+  ModLoader = {} as IModLoaderAPI;
   get anim(): Buffer {
     return this.core.player.anim;
   }
@@ -44,43 +45,14 @@ export class Data extends API.BaseObj {
     this.emulator.rdramWriteBuffer(this.pointer + 0xbc, rot);
   }
 
-  get tunic_colorR(): Buffer {
-    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
-    return this.emulator.rdramReadBuffer(tunic_color_addr, 0x1);
+  get tunic_color(): number {
+    //return (this.emulator as unknown as IRomMemory).romRead32(0x116639C);
+    return 0;
   }
 
-  get tunic_colorG(): Buffer {
-    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
-    return this.emulator.rdramReadBuffer(tunic_color_addr + 0x1, 0x1);
+  set tunic_color(tunic_color: number)  {
+    this.emulator.rdramWrite32(this.pointer + 0x1CB, tunic_color);
   }
-
-  get tunic_colorB(): Buffer {
-    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
-    return this.emulator.rdramReadBuffer(tunic_color_addr+ 0x2, 0x1);
-  }
-
-  get tunic_colorA(): Buffer {
-    let tunic_color_addr = (this.core.player.link_object + 0xB9D4);
-    return this.emulator.rdramReadBuffer(tunic_color_addr + 0x3, 0x1);
-  }
-  
-  set tunic_colorR(buf: Buffer) {
-      this.emulator.rdramWriteBuffer(this.pointer + 0x1CA, this.tunic_colorR);
-  }
-
-  set tunic_colorG(buf: Buffer) {
-      this.emulator.rdramWriteBuffer(this.pointer + 0x1CB, this.tunic_colorG);
-  }
-
-  set tunic_colorB(buf: Buffer) {
-      this.emulator.rdramWriteBuffer(this.pointer + 0x1CC, this.tunic_colorB);
-  }
-
-  set tunic_colorA(buf: Buffer) {
-      this.emulator.rdramWriteBuffer(this.pointer + 0x1CD, this.tunic_colorA);
-  }
-
-
 
   /*get sound(): number {
     let id = this.link.current_sound_id;
