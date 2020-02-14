@@ -883,7 +883,7 @@ export class MmOnline implements IPlugin {
     init(): void { }
 
     postinit(): void {
-        if (this.rom.length > 1) {
+        if (this.rom !== undefined) {
             // Set tunic color
             let tools = new Z64RomTools(this.ModLoader, 0x1a500);
             let buf = tools.decompressFileFromRom(this.rom, 654);
