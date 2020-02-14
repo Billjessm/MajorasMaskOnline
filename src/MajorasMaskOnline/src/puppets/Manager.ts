@@ -9,6 +9,7 @@ import * as Net from '../network/Imports';
 
 export class PuppetManager {
     private emu!: IMemory;
+    private core!: API.IMMCore;
     private mapi!: IModLoaderAPI;
     private puppetArray: Puppet[] = [];
     private playerToPuppetMap: Map<string, number> = new Map<string, number>();
@@ -34,15 +35,10 @@ export class PuppetManager {
         nplayer: INetworkPlayer,
         mapi: IModLoaderAPI
     ) {
+        this.core = core;
         this.emu = emu;
         this.mapi = mapi;
         this.dummy = new Puppet(this.emu, core, nplayer, 0x0);
-
-        for (let i = 0; i < 8; i++) {
-            let pdummy = new Puppet(emu, core, dummy, 0x0);
-            this.puppetArray.push(pdummy);
-            this.emptyPuppetSlot.push(i);
-        }
     }
 
     reset() {
@@ -50,7 +46,7 @@ export class PuppetManager {
         for (let i = 0; i < this.puppetArray.length; i++) {
             this.puppetArray[i].scene = -1;
             this.puppetArray[i].nplayer = dummy;
-            this.puppetArray[i].despawn();
+            this.puppetArray[i].shovel();
             this.emptyPuppetSlot.push(i);
         }
         this.playerToPuppetMap.clear();
@@ -67,7 +63,7 @@ export class PuppetManager {
         if (!this.playerToPuppetMap.has(nplayer.uuid)) return;
         let index = this.playerToPuppetMap.get(nplayer.uuid)!;
         let puppet: Puppet = this.puppetArray[index];
-        puppet.despawn();
+        puppet.shovel();
         puppet.nplayer = dummy;
         puppet.scene = -1;
         this.playerToPuppetMap.delete(nplayer.uuid);
@@ -105,13 +101,25 @@ export class PuppetManager {
 
     handleNewPlayers() {
         if (this.awaitingPuppets.length < 1) return;
-        if (this.emptyPuppetSlot.length < 1) return;
         let nplayer: INetworkPlayer = this.awaitingPuppets.splice(0, 1)[0];
         if (this.playerToPuppetMap.has(nplayer.uuid)) return;
 
-        // Insert nplayer.
-        let index = this.emptyPuppetSlot.shift() as number;
-        this.puppetArray[index].nplayer = nplayer;
+        let index: number
+
+        if (this.emptyPuppetSlot.length < 1) {
+            // Make new slot
+            console.log("####################");
+            console.log(this.puppetArray.length)
+            console.log("####################");
+
+            index = this.puppetArray.length
+            this.puppetArray.push(new Puppet(this.emu, this.core, nplayer, 0x0));
+        } else {
+            // Reuse slot
+            index = this.emptyPuppetSlot.shift() as number;
+            this.puppetArray[index].nplayer = nplayer;
+        }
+
         this.playerToPuppetMap.set(nplayer.uuid, index);
         this.log('Assigned puppet to nplayer ' + nplayer.nickname + '.');
         this.mapi.clientSide.sendPacket(new Packet('Request_Scene', 'MmOnline', this.mapi.clientLobby, true));
@@ -155,7 +163,7 @@ export class PuppetManager {
                     // Needs Respawned.
                     this.awaitingSpawn.push(this.puppetArray[i]);
                 } else if (!puppetInScene && puppetSpawned) {
-                    // Needs Despawned.
+                    // Needs Shoveled.
                     this.puppetArray[i].shovel();
                 }
             }
@@ -163,7 +171,7 @@ export class PuppetManager {
             // We aren't in scene, no one should be spawned!
             for (let i = 0; i < this.puppetArray.length; i++) {
                 if (this.puppetArray[i].isSpawned) {
-                    this.puppetArray[i].despawn();
+                    this.puppetArray[i].shovel();
                 }
             }
         }

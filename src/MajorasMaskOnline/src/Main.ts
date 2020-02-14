@@ -94,7 +94,7 @@ export class MmOnline implements IPlugin {
             this.db.items = this.core.save.item_slots.array;
             return;
         }
-        
+
         // Only progress if we havent invoked a time reset
         if (this.db.time_reset) return;
 
@@ -142,7 +142,7 @@ export class MmOnline implements IPlugin {
         if (!isSafe) scene = -1;
         this.pMgr.scene = scene;
 
-        if (this.core.runtime.scene_frame > 0) this.pMgr.onTick();
+        if (this.core.runtime.scene_frame > 0) this.pMgr.onTick(isSafe);
     }
 
     handle_cycle_flags(bufData: Buffer, bufStorage: Buffer) {
