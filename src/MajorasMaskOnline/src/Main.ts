@@ -453,7 +453,10 @@ export class MmOnline implements IPlugin {
 
     handle_health() {
         if (this.db.health_need_update) {
+            this.core.save.health.containers = this.db.health.containers;
+            this.core.save.health.double_defense = this.db.health.double_defense
             this.core.save.health.pieces = this.db.health.pieces;
+            this.core.save.health.start_health = this.db.health.containers;
             this.db.health_need_update = false;
         }
 
@@ -1746,6 +1749,7 @@ export class MmOnline implements IPlugin {
         this.db.scene_data = packet.scene_data;
         this.db.bank = packet.bank;
         this.db.quest_status = packet.quest_status;
+        this.db.health = packet.health;
         this.db.magic = packet.magic;
         this.db.equips = packet.equips;
         this.db.items = packet.items;
