@@ -175,8 +175,8 @@ export class PuppetManager {
     }
 
     handlePuppet(packet: Net.SyncPuppet) {
-        if (!isSafe) return;
-        
+        if (!this.isSafe) return;
+
         if (!this.playerToPuppetMap.has(packet.player.uuid)) {
             this.registerPuppet(packet.player);
             return;
