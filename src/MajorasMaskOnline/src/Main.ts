@@ -1101,7 +1101,7 @@ export class MmOnline implements IPlugin {
             sDB.timeless = packet.timeless;
 
             sDB.hasConfig = true;
-            this.ModLoader.logger.info('[Server] Updated: {Lobby Config}');
+            this.ModLoader.logger.info('[Server] Updated: {Lobby Config - Timeless=' + sDB.timeless + '}');
         }
 
         // Update everyones config
