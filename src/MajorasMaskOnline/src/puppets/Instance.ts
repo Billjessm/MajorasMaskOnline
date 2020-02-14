@@ -28,7 +28,7 @@ export class Data extends API.BaseObj {
 		return this.core.player.anim;
 	}
 	set anim(anim: Buffer) {
-		this.emulator.rdramWriteBuffer(this.pointer + 0x144, this.anim);
+		this.emulator.rdramWriteBuffer(this.pointer + 0x144, anim);
 	}
 
 	get pos(): Buffer {
