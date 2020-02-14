@@ -922,9 +922,10 @@ export class MmOnline implements IPlugin {
         let bufStorage: Buffer;
         let bufData: Buffer;
         let scene: number = this.core.runtime.get_current_scene() & 0x000000ff;
-        let zoning: boolean = this.core.runtime.is_entering_zone();
+        let cutscene: number = this.core.runtime.cutscene_ptr;
         let timeCard: boolean = this.core.runtime.get_current_scene() === 0x804d;
-        let isSafe: boolean = !(zoning || timeCard ||
+        let zoning: boolean = this.core.runtime.is_entering_zone();
+        let isSafe: boolean = !(zoning || timeCard || cutscene !== 0 ||
             scene === API.SceneType.VARIOUS_CUTSCENES)
 
         // Safety Check

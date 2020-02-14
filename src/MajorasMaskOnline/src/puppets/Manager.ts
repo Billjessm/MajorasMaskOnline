@@ -15,7 +15,8 @@ export class PuppetManager {
     private emptyPuppetSlot: number[] = new Array<number>();
     private awaitingSpawn: Puppet[] = new Array<Puppet>();
     private awaitingPuppets: INetworkPlayer[] = new Array<INetworkPlayer>();
-    dummy!: Puppet;
+    private dummy!: Puppet;
+    private isSafe: boolean = false;
 
     log(msg: string) {
         console.info('info:    [Puppet Manager] ' + msg);
@@ -174,6 +175,8 @@ export class PuppetManager {
     }
 
     handlePuppet(packet: Net.SyncPuppet) {
+        if (!isSafe) return;
+        
         if (!this.playerToPuppetMap.has(packet.player.uuid)) {
             this.registerPuppet(packet.player);
             return;
@@ -185,7 +188,9 @@ export class PuppetManager {
         puppet.handleInstance(packet.puppet);
     }
 
-    onTick() {
+    onTick(isSafe: boolean) {
+        this.isSafe = isSafe;
+
         this.handleNewPlayers();
         if (this.scene !== -1) {
             this.handleAwaitingSpawns();
