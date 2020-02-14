@@ -453,10 +453,7 @@ export class MmOnline implements IPlugin {
 
     handle_health() {
         if (this.db.health_need_update) {
-            this.core.save.health.containers = this.db.health.containers;
-            this.core.save.health.double_defense = this.db.health.double_defense
             this.core.save.health.pieces = this.db.health.pieces;
-            this.core.save.health.start_health = this.db.health.containers;
             this.db.health_need_update = false;
         }
 
@@ -488,6 +485,7 @@ export class MmOnline implements IPlugin {
         if (!needUpdate) return;
 
         this.db.health = hpStorage;
+        this.core.save.health.start_health = hpStorage.containers;
 
         // Send changes to server
         let pData = new Net.SyncHealth(
