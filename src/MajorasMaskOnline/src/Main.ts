@@ -607,6 +607,29 @@ export class MmOnline implements IPlugin {
                 this.db.trade_need_update = false;
             }
         }
+        // Timeless version
+        else {
+            if (this.db.bottles_need_update) {
+                bufData = this.core.save.item_slots.array;
+
+                // If a new bottle was collected that we dont have give empty bottles
+                if (bufData[0x12] === 255 && this.db.items[0x12] !== -1)
+                    bufData[0x12] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x13] === 255 && this.db.items[0x13] !== -1)
+                    bufData[0x13] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x14] === 255 && this.db.items[0x14] !== -1)
+                    bufData[0x14] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x15] === 255 && this.db.items[0x15] !== -1)
+                    bufData[0x15] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x16] === 255 && this.db.items[0x16] !== -1)
+                    bufData[0x16] = API.ItemType.BOTTLE_EMPTY;
+                if (bufData[0x17] === 255 && this.db.items[0x17] !== -1)
+                    bufData[0x17] = API.ItemType.BOTTLE_EMPTY;
+
+                this.core.save.item_slots.array = bufData;
+                this.db.bottles_need_update = false;
+            }
+        }
 
         // Initializers
         let pData: Net.SyncBuffered;
@@ -621,23 +644,6 @@ export class MmOnline implements IPlugin {
         bufData = this.core.save.item_slots.array;
         bufStorage = this.db.items;
         needUpdate = false;
-
-        // Timeless version -- Fix bottles
-        if (this.db.timeless) {
-            // If a new bottle was collected that we dont have give empty bottles
-            if (bufData[0x12] === 255 && this.db.items[0x12] !== 255)
-                bufData[0x12] = API.ItemType.BOTTLE_EMPTY;
-            if (bufData[0x13] === 255 && this.db.items[0x13] !== 255)
-                bufData[0x13] = API.ItemType.BOTTLE_EMPTY;
-            if (bufData[0x14] === 255 && this.db.items[0x14] !== 255)
-                bufData[0x14] = API.ItemType.BOTTLE_EMPTY;
-            if (bufData[0x15] === 255 && this.db.items[0x15] !== 255)
-                bufData[0x15] = API.ItemType.BOTTLE_EMPTY;
-            if (bufData[0x16] === 255 && this.db.items[0x16] !== 255)
-                bufData[0x16] = API.ItemType.BOTTLE_EMPTY;
-            if (bufData[0x17] === 255 && this.db.items[0x17] !== 255)
-                bufData[0x17] = API.ItemType.BOTTLE_EMPTY;
-        }
 
         // Normal items with upgrades
         for (i = 0; i < 3; i++) {
