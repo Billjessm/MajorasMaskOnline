@@ -15,6 +15,7 @@ export class Puppet extends API.BaseObj {
 	canHandle = false;
 	isSpawned = false;
 	isShoveled = false;
+	isWaiting = false;
 	void!: Buffer;
 
 	log(msg: string) {
@@ -37,7 +38,8 @@ export class Puppet extends API.BaseObj {
 	}
 
 	handleInstance(data: PData.Data) {
-		if (!this.isSpawned || !this.canHandle || this.isShoveled) return;
+		if (this.isWaiting || !this.isSpawned ||
+			!this.canHandle || this.isShoveled) return;
 		Object.keys(data).forEach((key: string) => {
 			(this.data as any)[key] = (data as any)[key];
 		});
@@ -53,25 +55,22 @@ export class Puppet extends API.BaseObj {
 		this.isSpawned = (this.data.pointer !== 0x000000);
 		this.canHandle = false;
 
+		if (this.isWaiting) return;
+
+		this.isShoveled = false;
+
 		if (this.isSpawned) {
 			this.canHandle = true;
-
-			if (this.isShoveled) {
-				this.isShoveled = false;
-				this.log('Puppet resurrected! ' +
-					this.data.pointer.toString(16).toUpperCase());
-			}
-
 			return;
-		} else {
-			this.data.pointer = 0x000000;
-			this.isShoveled = false;
 		}
 
+		this.isWaiting = true;
 		this.core.commandBuffer.runCommand(
 			Command.SPAWN_ACTOR,
 			0x80800000,
 			(success: boolean, result: number) => {
+				this.isWaiting = false;
+
 				if (!success) {
 					this.log('Spawn Failed');
 					return;
@@ -80,7 +79,7 @@ export class Puppet extends API.BaseObj {
 				let ptr = result & 0x00ffffff
 				this.data.pointer = ptr;
 				this.disable_despawn();
-                this.isSpawned = true;
+				this.isSpawned = true;
 				this.canHandle = true;
 
 				this.log('Puppet spawned! ' + ptr.toString(16).toUpperCase());
@@ -94,8 +93,9 @@ export class Puppet extends API.BaseObj {
 		this.canHandle = false;
 		this.isShoveled = false;
 
-		if (!this.isSpawned) return;
+		if (this.isWaiting || !this.isSpawned) return;
 
+		this.emulator.rdramWriteBuffer(this.data.pointer + 0x24, this.void);
 		this.emulator.rdramWrite32(this.data.pointer + 0x130, 0x0);
 		this.emulator.rdramWrite32(this.data.pointer + 0x134, 0x0);
 		this.data.pointer = 0x000000;
@@ -108,7 +108,7 @@ export class Puppet extends API.BaseObj {
 		this.isSpawned = (this.data.pointer !== 0x000000);
 		this.canHandle = false;
 
-		if (!this.isSpawned || this.isShoveled) return;
+		if (this.isWaiting || !this.isSpawned || this.isShoveled) return;
 
 		this.emulator.rdramWriteBuffer(this.data.pointer + 0x24, this.void);
 		this.isShoveled = true;

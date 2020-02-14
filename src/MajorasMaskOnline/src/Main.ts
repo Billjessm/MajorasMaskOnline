@@ -607,29 +607,6 @@ export class MmOnline implements IPlugin {
                 this.db.trade_need_update = false;
             }
         }
-        // Timeless version
-        else {
-            if (this.db.bottles_need_update) {
-                bufData = this.core.save.item_slots.array;
-
-                // If a new bottle was collected that we dont have give empty bottles
-                if (bufData[0x12] === 255 && this.db.items[0x12] !== -1)
-                    bufData[0x12] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x13] === 255 && this.db.items[0x13] !== -1)
-                    bufData[0x13] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x14] === 255 && this.db.items[0x14] !== -1)
-                    bufData[0x14] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x15] === 255 && this.db.items[0x15] !== -1)
-                    bufData[0x15] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x16] === 255 && this.db.items[0x16] !== -1)
-                    bufData[0x16] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x17] === 255 && this.db.items[0x17] !== -1)
-                    bufData[0x17] = API.ItemType.BOTTLE_EMPTY;
-
-                this.core.save.item_slots.array = bufData;
-                this.db.bottles_need_update = false;
-            }
-        }
 
         // Initializers
         let pData: Net.SyncBuffered;
@@ -703,20 +680,40 @@ export class MmOnline implements IPlugin {
                 val1 = bufData[i] !== 255 ? bufData[i] : -1;
                 val2 = bufStorage[i] !== 255 ? bufStorage[i] : -1;
 
-                if (val1 !== val2) {
-                    if (val1 === -1)
-                        needUpdate = true;
-                    else if (val2 === -1)
-                        bufStorage[i] = bufData[i]
+                if (val1 === -1 && val2 !== -1) {
+                    bufData[i] = API.ItemType.BOTTLE_EMPTY;
+                } else if (val2 === -1 && val1 !== -1) {
+                    bufStorage[i] = API.ItemType.BOTTLE_EMPTY;
+                    needUpdate = true;
                 }
             }
         }
 
         // Process Changes
-        if (!needUpdate) return;
+        if (!needUpdate) {
+            // Set the temp storage variable to our
+            // current bottles so we dont lose them
+            if (this.db.timeless) {
+                for (i = 0x12; i < 0x18; i++) {
+                    bufStorage[i] = bufData[i];
+                }
+            }
+
+            this.core.save.item_slots.array = bufStorage;
+            return;
+        }
+
+        this.db.items = bufStorage;
+
+        // Set the temp storage variable to our
+        // current bottles so we dont lose them
+        if (this.db.timeless) {
+            for (i = 0x12; i < 0x18; i++) {
+                bufStorage[i] = bufData[i];
+            }
+        }
 
         this.core.save.item_slots.array = bufStorage;
-        this.db.items = bufStorage;
 
         // Send changes to server
         pData = new Net.SyncBuffered(this.ModLoader.clientLobby, 'SyncItemSlots', bufStorage, false);
@@ -2223,26 +2220,32 @@ export class MmOnline implements IPlugin {
             // If a new bottle was collected that we dont have give empty bottles
             if (data[0x12] === 255 && packet.value[0x12] !== 255) {
                 data[0x12] = API.ItemType.BOTTLE_EMPTY;
+                this.db.bottles_need_update = true;
                 needUpdate = true;
             }
             if (data[0x13] === 255 && packet.value[0x13] !== 255) {
                 data[0x13] = API.ItemType.BOTTLE_EMPTY;
+                this.db.bottles_need_update = true;
                 needUpdate = true;
             }
             if (data[0x14] === 255 && packet.value[0x14] !== 255) {
                 data[0x14] = API.ItemType.BOTTLE_EMPTY;
+                this.db.bottles_need_update = true;
                 needUpdate = true;
             }
             if (data[0x15] === 255 && packet.value[0x15] !== 255) {
                 data[0x15] = API.ItemType.BOTTLE_EMPTY;
+                this.db.bottles_need_update = true;
                 needUpdate = true;
             }
             if (data[0x16] === 255 && packet.value[0x16] !== 255) {
                 data[0x16] = API.ItemType.BOTTLE_EMPTY;
+                this.db.bottles_need_update = true;
                 needUpdate = true;
             }
             if (data[0x17] === 255 && packet.value[0x17] !== 255) {
                 data[0x17] = API.ItemType.BOTTLE_EMPTY;
+                this.db.bottles_need_update = true;
                 needUpdate = true;
             }
         }
