@@ -138,7 +138,7 @@ static int MMAnimate(z64_global_t* global, int limb_number, uint32_t* display_li
 	{
 		z64_rot_t* frame_translation = (z64_rot_t*)en->current_frame_data;
 		translation->x += frame_translation->x;
-		translation->y += frame_translation->y;
+		translation->y += en->puppetData.age == MM_FORM_HUMAN ? (frame_translation->y * 0.66f) : frame_translation->y;
 		translation->z += frame_translation->z;
 	}
 
@@ -316,9 +316,6 @@ static void otherCallback(z64_global_t *global, uint8_t limb, uint32_t dlist, ve
 
 static void draw(entity_t *en, z64_global_t *global)
 {
-
-	//z64_actor_t* Link = zh_get_player(global);
-
 
 	//copyPlayerAnimFrame(en, global);
 
