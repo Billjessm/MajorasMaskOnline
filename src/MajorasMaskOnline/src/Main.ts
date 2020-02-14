@@ -89,16 +89,16 @@ export class MmOnline implements IPlugin {
         // Make sure we are invoking ocarina reset time
         if (this.core.runtime.cutscene_ptr !== 0x8072d7d0) return;
 
-        // Only progress if we havent invoked a time reset
-        if (this.db.time_reset) return;
-
-        this.db.time_reset = true;
-
         // Time sync feature only -- Only fix inventory
         if (this.db.timeless) {
             this.db.items = this.core.save.item_slots.array;
             return;
         }
+        
+        // Only progress if we havent invoked a time reset
+        if (this.db.time_reset) return;
+
+        this.db.time_reset = true;
 
         let pData = new Net.SyncTimeReset(
             this.ModLoader.clientLobby,
@@ -146,6 +146,9 @@ export class MmOnline implements IPlugin {
     }
 
     handle_cycle_flags(bufData: Buffer, bufStorage: Buffer) {
+        // Time sync feature only
+        if (this.db.timeless) return;
+
         if (this.db.cycle_need_update) {
             // Time sync feature only
             if (!this.db.timeless)
@@ -154,9 +157,6 @@ export class MmOnline implements IPlugin {
             this.db.cycle_need_update = false;
             return;
         }
-
-        // Time sync feature only
-        if (this.db.timeless) return;
 
         // Initializers
         let pData: Net.SyncBuffered;
@@ -185,6 +185,9 @@ export class MmOnline implements IPlugin {
     }
 
     handle_event_flags(bufData: Buffer, bufStorage: Buffer) {
+        // Time sync feature only
+        if (this.db.timeless) return;
+
         if (this.db.event_need_update) {
             // Time sync feature only
             if (!this.db.timeless)
@@ -193,9 +196,6 @@ export class MmOnline implements IPlugin {
             this.db.event_need_update = false;
             return;
         }
-
-        // Time sync feature only
-        if (this.db.timeless) return;
 
         // Initializers
         let pData: Net.SyncBuffered;
