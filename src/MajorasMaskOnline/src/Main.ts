@@ -101,7 +101,6 @@ export class MmOnline implements IPlugin {
             this.ModLoader.clientLobby,
             this.db.cycle_bak,
             this.db.event_bak,
-            this.db.clock_bak,
             false
         );
         this.ModLoader.clientSide.sendPacket(pData);
@@ -115,18 +114,6 @@ export class MmOnline implements IPlugin {
             this.db.clock_init = true;
             this.db.time_reset = false;
         }
-
-        // Prevent double time push
-        if (timeCard && this.db.time_card_state === 1)
-            this.db.time_card_state = 2;
-        else if (this.db.time_card_state === 2)
-            this.db.time_card_state = 0;
-        else if (this.db.time_card_state === 3 && scene !== -1)
-            this.db.time_card_state = 4;
-        else if (timeCard && this.db.time_card_state === 4)
-            this.db.time_card_state = 5;
-        else if (!timeCard && this.db.time_card_state === 5)
-            this.db.time_card_state = 0;
 
         // Set global to current scene value
         this.curScene = scene;
@@ -785,90 +772,80 @@ export class MmOnline implements IPlugin {
             return;
         }
 
-        // Wait for time card transition
-        if (this.db.time_card_state === 1 ||
-            this.db.time_card_state === 2) {
-            this.db.clock_need_update = true;
-            return;
-        }
-
-        if (this.db.time_card_state === 3 ||
-            this.db.time_card_state === 4 ||
-            this.db.time_card_state === 5)
-            this.db.time_card_state = 0; // placeholder
-        //this.db.clock_need_update = true;
-
         // Time sync feature only
         if (this.db.timeless) return;
 
         if (!this.db.clock_init) return;
 
         // Initializers
-        let pData: Net.SyncClock;
-        let cur_day: number = this.core.save.clock.current_day;
-        let elapsed: number = this.core.save.clock.elapsed;
-        let speed: number = this.core.save.clock.speed;
-        let time: number = this.core.save.clock.time;
-        let timeData = Math.floor(this.core.save.clock.time / 0x1000);
-        let timeStorage = Math.floor(this.db.clock.time / 0x1000);
-        let is_night: boolean = this.core.save.clock.is_night;
-        let needUpdate: boolean = false;
-        let dayChange: boolean = false;
-
         let clock = new Net.ClockData();
-        clock.current_day = cur_day;
-        clock.elapsed = elapsed;
-        clock.is_night = is_night;
-        clock.speed = speed;
-        clock.time = time;
+        clock.current_day = this.core.save.clock.current_day;
+        clock.elapsed = this.core.save.clock.elapsed;
+        clock.is_night = this.core.save.clock.is_night;
+        clock.speed = this.core.save.clock.speed;
+        clock.time = this.core.save.clock.time;
         clock.is_started = true;
+
+        let pData: Net.SyncClock;
+        let timeData = Math.floor(clock.time / 0x1000);
+        let timeStorage = Math.floor(this.db.clock.time / 0x1000);
+        let needUpdate: boolean = false;
+
+        // Check for the time being pressed a day forward
+        {
+            if (
+                (clock.current_day === this.db.clock_live.current_day + 1 ||
+                    clock.elapsed === this.db.clock_live.elapsed + 1) &&
+                clock.time === this.db.clock_live.time &&
+                this.db.clock_live.is_night == false &&
+                clock.is_night === false) {
+                this.db.clock = clock;
+                this.db.clock_live = clock;
+                return;
+            }
+        }
 
         // Check time to backup data when save is invoked
         {
             if (
-                cur_day < this.db.clock_live.current_day ||
-                elapsed < this.db.clock_live.elapsed ||
-                time < this.db.clock_live.time ||
-                is_night !== this.db.clock_live.is_night
+                clock.current_day < this.db.clock_live.current_day ||
+                clock.elapsed < this.db.clock_live.elapsed ||
+                clock.time < this.db.clock_live.time ||
+                clock.is_night !== this.db.clock_live.is_night
             ) {
-                this.db.clock_bak = clock;
                 this.db.cycle_bak = this.core.save.cycle_flags.get_all();
                 this.db.event_bak = this.core.save.event_flags.get_all();
             }
+
+            this.db.clock_live = clock;
         }
 
         // Compare major changes
-        if (cur_day !== this.db.clock.current_day) {
-            needUpdate = true;
-            dayChange = true;
-        }
-        if (elapsed !== this.db.clock.elapsed) {
-            needUpdate = true;
-            dayChange = true;
-        }
-        if (is_night !== this.db.clock.is_night) needUpdate = true;
-        if (speed !== this.db.clock.speed) needUpdate = true;
+        if (clock.current_day !== this.db.clock.current_day) needUpdate = true;
+        if (clock.elapsed !== this.db.clock.elapsed) needUpdate = true;
+        if (clock.is_night !== this.db.clock.is_night) needUpdate = true;
+        if (clock.speed !== this.db.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
-
-        // Save live clock
-        this.db.clock_live = clock;
 
         // Process Changes
         if (!needUpdate) return;
 
-        // Process time card
-        if (dayChange && this.core.isPlaying() &&
-            this.curScene !== -1 && this.curScene !== 0x08 &&
-            this.db.time_card_state === 0)
-            this.db.time_card_state = 1;
-
         // Save time
         this.db.clock = clock;
 
-        // Send time
-        pData = new Net.SyncClock(this.ModLoader.clientLobby, clock);
-        this.ModLoader.clientSide.sendPacket(pData);
+        console.log("#################################")
+        console.log("CLOCK:   ")
+        console.log("CLOCK:   " + this.db.clock.current_day)
+        console.log("CLOCK:   " + this.db.clock.elapsed)
+        console.log("CLOCK:   " + this.db.clock.is_night)
+        console.log("CLOCK:   " + this.db.clock.speed)
+        console.log("CLOCK:   " + this.db.clock.time)
+        console.log("CLOCK:   ")
+        console.log("#################################")
 
+        // Send time
+        pData = new Net.SyncClock(this.ModLoader.clientLobby, clock, false);
+        this.ModLoader.clientSide.sendPacket(pData);
     }
 
     handle_map() {
@@ -1143,27 +1120,25 @@ export class MmOnline implements IPlugin {
             sDB.player_resetting[key] = true;
         });
 
-        // Pull game/time data
-        //sDB.clock = packet.clock;
-        sDB.clock.current_day = 1;
-        sDB.clock.elapsed = 1;
-        sDB.clock.is_night = false;
-        sDB.clock.speed = 0;
-        sDB.clock.time = 16000;
-        sDB.clock.is_started = true;
-
+        // Pull game data
         sDB.cycle_flags = packet.cycle;
         sDB.event_flags = packet.events;
         Object.keys(sDB.scene_data).forEach((key: string) => {
             sDB.scene_data[key] = new Net.SceneData();
         });
 
+        // Reset time
+        sDB.clock.current_day = 1;
+        sDB.clock.elapsed = 1;
+        sDB.clock.is_night = false;
+        sDB.clock.speed = 0;
+        sDB.clock.time = 16348;
+
         // Send packet
         let pData = new Net.SyncTimeReset(
             packet.lobby,
             sDB.cycle_flags,
             sDB.event_flags,
-            sDB.clock,
             true
         );
         this.ModLoader.serverSide.sendPacket(pData);
@@ -1664,14 +1639,22 @@ export class MmOnline implements IPlugin {
         if (sDB.clock.speed !== packet.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
 
-        if (!needUpdate) return;
+        if (needUpdate) {
+            sDB.clock = packet.clock;
 
-        sDB.clock = packet.clock;
+            // Ensure game_active check completed        
+            sDB.game_active = true;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+            // Send changes to clients
+            let pData = new Net.SyncClock(packet.lobby, sDB.clock, true);
+            this.ModLoader.serverSide.sendPacket(pData);
 
-        this.ModLoader.logger.info('[Server] Updated: {Clock}');
+            this.ModLoader.logger.info('[Server] Updated: {Clock}');
+        } else {
+            // Player is out of date, refresh them
+            let pData = new Net.SyncClock(packet.lobby, sDB.clock, false);
+            this.ModLoader.serverSide.sendPacketToSpecificPlayer(pData, packet.player);
+        }
     }
 
     @ServerNetworkHandler('SyncMap')
@@ -1821,11 +1804,23 @@ export class MmOnline implements IPlugin {
         }
 
         if (!this.db.time_reset) {
-            this.db.clock = packet.clock;
+            this.db.clock.current_day = 1;
+            this.db.clock.elapsed = 1;
+            this.db.clock.is_night = false;
+            this.db.clock.speed = 0;
+            this.db.clock.time = 16384;
             this.db.clock_need_update = true;
 
             if (this.core.isPlaying()) {
-                this.db.time_card_state = 3;
+                // Set time pre-day so transition screen happens
+                this.core.save.clock.current_day = 0;
+                this.core.save.clock.elapsed = 0;
+                this.core.save.clock.is_night = false;
+                this.core.save.clock.speed = 0;
+                this.core.save.clock.time = 16384;
+                this.db.time_reset = true;
+
+                // Reset map location
                 this.core.runtime.goto_scene(0x0000D800);
             }
         }
@@ -2288,31 +2283,17 @@ export class MmOnline implements IPlugin {
         let timeData = Math.floor(this.db.clock.time / 0x1000);
         let timeStorage = Math.floor(packet.clock.time / 0x1000);
         let needUpdate: boolean = false;
-        let dayChange: boolean = false;
 
         // Compare major changes
-        if (this.db.clock.current_day !== packet.clock.current_day) {
-            needUpdate = true;
-            dayChange = true;
-        }
-        if (this.db.clock.elapsed !== packet.clock.elapsed) {
-            needUpdate = true;
-            dayChange = true;
-        }
+        if (this.db.clock.current_day !== packet.clock.current_day) needUpdate = true;
+        if (this.db.clock.elapsed !== packet.clock.elapsed) needUpdate = true;
         if (this.db.clock.is_night !== packet.clock.is_night) needUpdate = true;
         if (this.db.clock.speed !== packet.clock.speed) needUpdate = true;
         if (timeData !== timeStorage) needUpdate = true;
 
         if (!needUpdate) return;
 
-        // Process time card
-        if (dayChange && this.core.isPlaying() &&
-            this.curScene !== -1 && this.curScene !== 0x08 &&
-            this.db.time_card_state === 0)
-            this.db.time_card_state = 1;
-
         this.db.clock = packet.clock;
-        this.db.clock_live = packet.clock;
         this.db.clock_need_update = true;
 
         this.ModLoader.logger.info('[Client] Updated: {Clock}');

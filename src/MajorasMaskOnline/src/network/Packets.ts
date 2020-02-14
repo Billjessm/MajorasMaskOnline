@@ -101,8 +101,8 @@ export class SyncSceneData extends Packet {
 
 export class SyncClock extends Packet {
     clock: DB.ClockData;
-    constructor(lobby: string, clock: DB.ClockData) {
-        super('SyncClock', 'MmOnline', lobby, true);
+    constructor(lobby: string, clock: DB.ClockData, persist: boolean) {
+        super('SyncClock', 'MmOnline', lobby, persist);
         this.clock = clock;
     }
 }
@@ -158,18 +158,15 @@ export class SyncEquipSlots extends Packet {
 export class SyncTimeReset extends Packet {
     cycle: Buffer;
     events: Buffer;
-    clock: DB.ClockData;
     constructor(
         lobby: string,
         cycle: Buffer,
         events: Buffer,
-        clock: DB.ClockData,
         persist: boolean
     ) {
         super('SyncTimeReset', 'MmOnline', lobby, true);
         this.cycle = cycle;
         this.events = events;
-        this.clock = clock;
     }
 }
 

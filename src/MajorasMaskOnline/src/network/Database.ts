@@ -33,8 +33,7 @@ export class Database {
 
 export class DatabaseClient extends Database {
     clock_live: ClockData = new ClockData();
-    
-    clock_bak: ClockData = new ClockData();
+
     cycle_bak: Buffer = Buffer.alloc(0x0960);
     event_bak: Buffer = Buffer.alloc(0x64);
 
@@ -57,6 +56,8 @@ export class DatabaseServer extends Database {
     // Puppets
     playerInstances: any = {};
     players: any = {};
+
+    // Time manipulations
     player_resetting: any = {};
 
     // Config Settings
