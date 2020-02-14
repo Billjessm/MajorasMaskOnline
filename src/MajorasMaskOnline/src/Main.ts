@@ -703,9 +703,11 @@ export class MmOnline implements IPlugin {
                 val1 = bufData[i] !== 255 ? bufData[i] : -1;
                 val2 = bufStorage[i] !== 255 ? bufStorage[i] : -1;
 
-                if (val1 !== val2 && val2 === -1) {
-                    bufStorage[i] = API.ItemType.BOTTLE_EMPTY;
-                    needUpdate = true;
+                if (val1 !== val2) {
+                    if (val1 === -1)
+                        needUpdate = true;
+                    else if (val2 === -1)
+                        bufStorage[i] = bufData[i]
                 }
             }
         }

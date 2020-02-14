@@ -92,6 +92,7 @@ export class PuppetManager {
         if (puppet.isSpawned && !puppet.isShoveled && puppet.form !== form) {
             puppet.despawn();
         }
+        
         puppet.scene = scene;
         puppet.form = form;
 
@@ -108,10 +109,6 @@ export class PuppetManager {
 
         if (this.emptyPuppetSlot.length < 1) {
             // Make new slot
-            console.log("####################");
-            console.log(this.puppetArray.length)
-            console.log("####################");
-
             index = this.puppetArray.length
             this.puppetArray.push(new Puppet(this.emu, this.core, nplayer, 0x0));
         } else {
@@ -154,18 +151,17 @@ export class PuppetManager {
             // Perform normal checks.
             let puppetInScene: boolean;
             let puppetSpawned: boolean;
-            let puppetShoveled: boolean;
             let scene = this.scene;
 
             for (let i = 0; i < this.puppetArray.length; i++) {
                 puppetInScene = this.puppetArray[i].scene === scene;
-                puppetSpawned = this.puppetArray[i].isSpawned;
-                puppetShoveled = this.puppetArray[i].isShoveled;
-                if (puppetInScene && (!puppetSpawned ||
-                    (puppetSpawned && puppetShoveled))) {
+                puppetSpawned = this.puppetArray[i].isSpawned &&
+                    !this.puppetArray[i].isShoveled;
+                    
+                if (puppetInScene && !puppetSpawned) {
                     // Needs Respawned.
                     this.awaitingSpawn.push(this.puppetArray[i]);
-                } else if (!puppetInScene && puppetSpawned && !puppetShoveled) {
+                } else if (!puppetInScene && puppetSpawned) {
                     // Needs Shoveled.
                     this.puppetArray[i].shovel();
                 }
@@ -173,9 +169,8 @@ export class PuppetManager {
         } else {
             // We aren't in scene, no one should be spawned!
             for (let i = 0; i < this.puppetArray.length; i++) {
-                if (this.puppetArray[i].isSpawned && 
-                    !this.puppetArray[i].isShoveled) {
-                    this.puppetArray[i].shovel();
+                if (this.puppetArray[i].isSpawned) {
+                    this.puppetArray[i].despawn();
                 }
             }
         }
@@ -196,9 +191,7 @@ export class PuppetManager {
         let puppet: Puppet = this.puppetArray[
             this.playerToPuppetMap.get(packet.player.uuid)!
         ];
-        if (!puppet.canHandle) {
-            return;
-        }
+        if (!puppet.canHandle) return;
         puppet.handleInstance(packet.puppet);
     }
 
