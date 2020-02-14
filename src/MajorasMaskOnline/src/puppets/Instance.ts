@@ -46,10 +46,10 @@ export class Data extends API.BaseObj {
 	}
 
 	get col_tunic(): number {
-		return 0x117d08ff;
+		return this.core.player.tunic_color;
 	}
 	set col_tunic(col: number) {
-		this.emulator.rdramWrite32(this.pointer + 0x1CB, col);
+		this.emulator.rdramWrite32(this.pointer + 0x1cc, col);
 	}
 
 	/*get sound(): number {

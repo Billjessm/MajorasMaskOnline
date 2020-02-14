@@ -46,6 +46,7 @@
   },
   "homepage": "https://github.com/hylian-modding/MajorasMaskOnline#readme",
   "modloader64_deps": {
-    "MajorasMask": "https://github.com/hylian-modding/Core-MajorasMask"
+    "MajorasMask": "https://github.com/hylian-modding/Core-MajorasMask",
+    "Z64Lib": "https://github.com/hylian-modding/ML64-Z64Lib"
   }
 }

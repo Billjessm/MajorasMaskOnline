@@ -7,9 +7,8 @@ import {
     EventServerJoined,
     EventServerLeft,
     EventsServer,
-    setupEventHandlers,
 } from 'modloader64_api/EventHandler';
-import { IModLoaderAPI, IPlugin } from 'modloader64_api/IModLoaderAPI';
+import { IModLoaderAPI, IPlugin, ModLoaderEvents } from 'modloader64_api/IModLoaderAPI';
 import {
     ILobbyStorage,
     INetworkPlayer,
@@ -21,10 +20,11 @@ import {
 import { InjectCore } from 'modloader64_api/CoreInjection';
 import { Packet } from 'modloader64_api/ModLoaderDefaultImpls';
 import { PayloadType } from 'modloader64_api/PayloadType';
+import { Z64RomTools } from 'Z64Lib/API/Z64RomTools';
+import { zzstatic } from './puppets/models/zzstatic/src/zzstatic';
 import * as API from 'MajorasMask/API/Imports';
 import * as Net from './network/Imports';
 import * as Puppet from './puppets/Imports';
-import { zzstatic, zzstatic_cache } from './puppets/models/zzstatic/src/zzstatic';
 
 export interface IConfig {
     timeless_mode: boolean;
@@ -38,6 +38,7 @@ export class MmOnline implements IPlugin {
     @InjectCore() core!: API.IMMCore;
 
     // Storage Variables
+    rom!: Buffer;
     db = new Net.DatabaseClient();
 
     // Helpers
@@ -65,10 +66,12 @@ export class MmOnline implements IPlugin {
         this.db.cycle_need_update = true;
         this.db.event_need_update = true;
 
-        this.db.bank_need_update = true;
-        this.db.health_need_update = true;
-        this.db.trade_need_update = true;
-        this.db.bottles_need_update = true;
+        if (this.db.game_active) {
+            this.db.bank_need_update = true;
+            this.db.health_need_update = true;
+            this.db.trade_need_update = true;
+            this.db.bottles_need_update = true;
+        }
     }
 
     check_db_instance(db: Net.Database, scene: number) {
@@ -582,7 +585,6 @@ export class MmOnline implements IPlugin {
     }
 
     handle_item_slots(bufData: Buffer, bufStorage: Buffer) {
-
         // Time sync version
         if (!this.db.timeless) {
             if (this.db.bottles_need_update) {
@@ -605,29 +607,6 @@ export class MmOnline implements IPlugin {
                 this.db.trade_need_update = false;
             }
         }
-        // Timeless version
-        else {
-            if (this.db.bottles_need_update) {
-                bufData = this.core.save.item_slots.array;
-
-                // If a new bottle was collected that we dont have give empty bottles
-                if (bufData[0x12] === 255 && this.db.items[0x12] !== 255)
-                    bufData[0x12] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x13] === 255 && this.db.items[0x13] !== 255)
-                    bufData[0x13] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x14] === 255 && this.db.items[0x14] !== 255)
-                    bufData[0x14] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x15] === 255 && this.db.items[0x15] !== 255)
-                    bufData[0x15] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x16] === 255 && this.db.items[0x16] !== 255)
-                    bufData[0x16] = API.ItemType.BOTTLE_EMPTY;
-                if (bufData[0x17] === 255 && this.db.items[0x17] !== 255)
-                    bufData[0x17] = API.ItemType.BOTTLE_EMPTY;
-
-                this.core.save.item_slots.array = bufData;
-                this.db.bottles_need_update = false;
-            }
-        }
 
         // Initializers
         let pData: Net.SyncBuffered;
@@ -642,6 +621,23 @@ export class MmOnline implements IPlugin {
         bufData = this.core.save.item_slots.array;
         bufStorage = this.db.items;
         needUpdate = false;
+
+        // Timeless version -- Fix bottles
+        if (this.db.timeless) {
+            // If a new bottle was collected that we dont have give empty bottles
+            if (bufData[0x12] === 255 && this.db.items[0x12] !== 255)
+                bufData[0x12] = API.ItemType.BOTTLE_EMPTY;
+            if (bufData[0x13] === 255 && this.db.items[0x13] !== 255)
+                bufData[0x13] = API.ItemType.BOTTLE_EMPTY;
+            if (bufData[0x14] === 255 && this.db.items[0x14] !== 255)
+                bufData[0x14] = API.ItemType.BOTTLE_EMPTY;
+            if (bufData[0x15] === 255 && this.db.items[0x15] !== 255)
+                bufData[0x15] = API.ItemType.BOTTLE_EMPTY;
+            if (bufData[0x16] === 255 && this.db.items[0x16] !== 255)
+                bufData[0x16] = API.ItemType.BOTTLE_EMPTY;
+            if (bufData[0x17] === 255 && this.db.items[0x17] !== 255)
+                bufData[0x17] = API.ItemType.BOTTLE_EMPTY;
+        }
 
         // Normal items with upgrades
         for (i = 0; i < 3; i++) {
@@ -701,8 +697,8 @@ export class MmOnline implements IPlugin {
                 val1 = bufData[i] !== 255 ? bufData[i] : -1;
                 val2 = bufStorage[i] !== 255 ? bufStorage[i] : -1;
 
-                if (val1 !== val2 && val1 > -1) {
-                    bufStorage[i] = bufData[i];
+                if (val1 !== val2 && val2 === -1) {
+                    bufStorage[i] = API.ItemType.BOTTLE_EMPTY;
                     needUpdate = true;
                 }
             }
@@ -757,6 +753,9 @@ export class MmOnline implements IPlugin {
     }
 
     handle_clock(scene: number) {
+        // Time sync feature only
+        if (this.db.timeless) return;
+
         if (this.db.clock_need_update) {
             // Time sync feature only
             if (!this.db.timeless) {
@@ -772,9 +771,6 @@ export class MmOnline implements IPlugin {
             this.db.clock_need_update = false;
             return;
         }
-
-        // Time sync feature only
-        if (this.db.timeless) return;
 
         if (!this.db.clock_init) return;
 
@@ -834,15 +830,15 @@ export class MmOnline implements IPlugin {
         // Save time
         this.db.clock = clock;
 
-        console.log("#################################")
-        console.log("CLOCK:   ")
-        console.log("CLOCK:   " + this.db.clock.current_day)
-        console.log("CLOCK:   " + this.db.clock.elapsed)
-        console.log("CLOCK:   " + this.db.clock.is_night)
-        console.log("CLOCK:   " + this.db.clock.speed)
-        console.log("CLOCK:   " + this.db.clock.time)
-        console.log("CLOCK:   ")
-        console.log("#################################")
+        // console.log("#################################")
+        // console.log("CLOCK:   ")
+        // console.log("CLOCK:   " + this.db.clock.current_day)
+        // console.log("CLOCK:   " + this.db.clock.elapsed)
+        // console.log("CLOCK:   " + this.db.clock.is_night)
+        // console.log("CLOCK:   " + this.db.clock.speed)
+        // console.log("CLOCK:   " + this.db.clock.time)
+        // console.log("CLOCK:   ")
+        // console.log("#################################")
 
         // Send time
         pData = new Net.SyncClock(this.ModLoader.clientLobby, clock, false);
@@ -887,6 +883,12 @@ export class MmOnline implements IPlugin {
     init(): void { }
 
     postinit(): void {
+        // Set tunic color
+        let tools = new Z64RomTools(this.ModLoader, 0x1a500);
+        let buf = tools.decompressFileFromRom(this.rom, 654);
+        this.core.player.tunic_color = buf.readInt32BE(0xb39c);
+
+        // Inject puppet zobj
         let zz = new zzstatic();
         this.ModLoader.payloadManager.registerPayloadType(new OverlayPayload('.ovl'));
         let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
@@ -966,13 +968,18 @@ export class MmOnline implements IPlugin {
         this.handle_masks_slots(bufData!, bufStorage!);
     }
 
+    @EventHandler(ModLoaderEvents.ON_ROM_PATCHED)
+    onRomPatched(evt: any) {
+        this.rom = evt.rom;
+    }
+
     @EventHandler(EventsClient.ON_PAYLOAD_INJECTED)
     onPayload(evt: any) {
         if (evt.file !== 'link.ovl') return
 
         this.ModLoader.utils.setTimeoutFrames(() => {
             this.ModLoader.emulator.rdramWrite16(0x800000, evt.result);
-            console.log('Setting link puppet id to ' + evt.result + '.');
+            //console.log('Setting link puppet id to ' + evt.result + '.');
         }, 20);
     }
 
@@ -2391,7 +2398,7 @@ export class OverlayPayload extends PayloadType {
     }
 
     parse(file: string, buf: Buffer, dest: Buffer) {
-        console.log('Trying to allocate actor...');
+        //console.log('Trying to allocate actor...');
         let overlay_start: number = 0x1AEFD0;
         let size = 0x02b1;
         let empty_slots: number[] = new Array<number>();
@@ -2404,7 +2411,7 @@ export class OverlayPayload extends PayloadType {
                 empty_slots.push(i);
             }
         }
-        console.log(empty_slots.length + ' empty actor slots found.');
+        //console.log(empty_slots.length + ' empty actor slots found.');
         let finder: find_init = new find_init();
         let meta: ovl_meta = JSON.parse(
             fs
@@ -2424,9 +2431,7 @@ export class OverlayPayload extends PayloadType {
         }
         let addr: number = parseInt(meta.addr) + offset;
         let slot: number = empty_slots.shift() as number;
-        console.log(
-            'Assigning ' + path.parse(file).base + ' to slot ' + slot + '.'
-        );
+        //console.log('Assigning ' + path.parse(file).base + ' to slot ' + slot + '.');
         dest.writeUInt32BE(0x80000000 + addr, slot * 0x20 + overlay_start + 0x14);
         buf.writeUInt8(slot, offset + 0x1);
         buf.copy(dest, parseInt(meta.addr));

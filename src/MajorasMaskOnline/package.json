@@ -9,6 +9,7 @@
   "core": "MajorasMask",
   "updateUrl": "https://raw.githubusercontent.com/hylian-modding/MajorasMaskOnline/master/update.json",
   "modloader64_deps": {
-    "MajorasMask": "https://github.com/hylian-modding/Core-MajorasMask"
+    "MajorasMask": "https://github.com/hylian-modding/Core-MajorasMask",
+    "Z64Lib": "https://github.com/hylian-modding/ML64-Z64Lib"
   }
 }
