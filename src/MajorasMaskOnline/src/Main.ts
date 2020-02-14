@@ -904,12 +904,6 @@ export class MmOnline implements IPlugin {
             this.ModLoader
         );
         this.ModLoader.logger.info('Puppet manager activated.');
-
-        // Load config
-        if (!fs.existsSync(this.configPath))
-            fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
-
-        this.config = JSON.parse(fs.readFileSync(this.configPath).toString());
     }
 
     onTick(): void {
@@ -1004,17 +998,20 @@ export class MmOnline implements IPlugin {
 
     @EventHandler(EventsClient.ON_LOBBY_JOIN)
     onClient_LobbyJoin(lobby: LobbyData): void {
-        this.db = new Net.DatabaseClient();
-        this.db.timeless = this.config.timeless_mode;
-
         // Send our storage request to the server
         let pData = new Packet('RequestStorage', 'MmOnline', this.ModLoader.clientLobby, false);
         this.ModLoader.clientSide.sendPacket(pData);
 
+        // Load config
+        if (!fs.existsSync(this.configPath))
+            fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2));
+
+        this.config = JSON.parse(fs.readFileSync(this.configPath).toString());
+
         // Send our config data
         pData = new Net.SyncConfig(
             this.ModLoader.clientLobby,
-            this.db.timeless,
+            this.config.timeless_mode,
             false
         );
         this.ModLoader.clientSide.sendPacket(pData);
@@ -1101,7 +1098,7 @@ export class MmOnline implements IPlugin {
             sDB.timeless = packet.timeless;
 
             sDB.hasConfig = true;
-            this.ModLoader.logger.info('[Server] Updated: {Lobby Config - Timeless=' + sDB.timeless + '}');
+            this.ModLoader.logger.info('[Server] Updated: {Lobby Config}');
         }
 
         // Update everyones config
