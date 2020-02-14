@@ -883,10 +883,12 @@ export class MmOnline implements IPlugin {
     init(): void { }
 
     postinit(): void {
-        // Set tunic color
-        let tools = new Z64RomTools(this.ModLoader, 0x1a500);
-        let buf = tools.decompressFileFromRom(this.rom, 654);
-        this.core.player.tunic_color = buf.readInt32BE(0xb39c);
+        if (this.rom.length > 1) {
+            // Set tunic color
+            let tools = new Z64RomTools(this.ModLoader, 0x1a500);
+            let buf = tools.decompressFileFromRom(this.rom, 654);
+            this.core.player.tunic_color = buf.readInt32BE(0xb39c);
+        }
 
         // Inject puppet zobj
         let zz = new zzstatic();
