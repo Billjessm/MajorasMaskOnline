@@ -162,7 +162,7 @@ export class PuppetManager {
                 puppetSpawned = this.puppetArray[i].isSpawned;
                 puppetShoveled = this.puppetArray[i].isShoveled;
                 if (puppetInScene && (!puppetSpawned ||
-                    (puppetSpawned && puppetShoveled)) {
+                    (puppetSpawned && puppetShoveled))) {
                     // Needs Respawned.
                     this.awaitingSpawn.push(this.puppetArray[i]);
                 } else if (!puppetInScene && puppetSpawned && !puppetShoveled) {
