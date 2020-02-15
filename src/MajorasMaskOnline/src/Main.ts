@@ -66,9 +66,9 @@ export class MmOnline implements IPlugin {
         this.db.cycle_need_update = true;
         this.db.event_need_update = true;
 
+        this.db.health_need_update = true;
         if (this.db.game_active) {
             this.db.bank_need_update = true;
-            this.db.health_need_update = true;
             this.db.trade_need_update = true;
             this.db.bottles_need_update = true;
         }
@@ -80,14 +80,15 @@ export class MmOnline implements IPlugin {
         db.scene_data[scene] = new Net.SceneData();
     }
 
-    handle_reset_time(scene: number) {
+    handle_reset_time(scene: number, cutscene: number) {
         if (scene === this.curScene) return;
 
         // Make sure we are on cutscene map
         if (scene !== API.SceneType.VARIOUS_CUTSCENES) return;
 
         // Make sure we are invoking ocarina reset time
-        if (this.core.runtime.cutscene_ptr !== 0x8072d7d0) return;
+        if ((this.db.is_rando && cutscene === 0x8072e1d0) ||
+            cutscene === 0x8072d7d0) return;
 
         // Time sync feature only -- Only fix inventory
         if (this.db.timeless) {
@@ -130,7 +131,7 @@ export class MmOnline implements IPlugin {
                 this.ModLoader.clientLobby,
                 this.ModLoader.me,
                 scene,
-                this.core.save.current_form
+                this.core.player.current_form
             )
         );
 
@@ -363,7 +364,7 @@ export class MmOnline implements IPlugin {
             }
 
             this.core.save.intro_flag = stateStorage;
-            this.core.save.current_form = API.FormType.DEKU;
+            this.core.player.current_form = API.FormType.DEKU;
             this.core.save.have_tatl = true;
             this.core.runtime.goto_scene(0x0000D800);
             return;
@@ -457,6 +458,7 @@ export class MmOnline implements IPlugin {
     handle_health() {
         if (this.db.health_need_update) {
             this.core.save.health.pieces = this.db.health.pieces;
+            this.core.save.health.hearts = this.db.health.containers;
             this.db.health_need_update = false;
         }
 
@@ -488,7 +490,7 @@ export class MmOnline implements IPlugin {
         if (!needUpdate) return;
 
         this.db.health = hpStorage;
-        this.core.save.health.start_health = hpStorage.containers;
+        this.core.save.health.hearts = hpStorage.containers;
 
         // Send changes to server
         let pData = new Net.SyncHealth(
@@ -850,32 +852,45 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_map() {
+    handle_map(bufData: Buffer, bufStorage: Buffer) {
         // Initializers
-        let visible = this.core.save.map_visible;
-        let visited = this.core.save.map_visited;
-        let map = this.db.map;
+        let visible = this.core.save.map.visible;
+        let visited = this.core.save.map.visited;
+        let i: number;
+        let count: number;
         let needUpdate = false;
 
-        if (visible !== map.visible) {
-            visible &= map.visible;
-            this.core.save.map_visible = visible;
-            this.db.map.visible = visible;
+        bufData = this.core.save.map.mini;
+        bufStorage = this.db.map.mini;
+        count = bufData.byteLength;
+
+        // Detect Changes
+        for (i = 0; i < count; i++) {
+            if (bufData[i] === bufStorage[i]) continue;
+            bufData[i] |= bufStorage[i];
             needUpdate = true;
         }
 
-        if (visited !== map.visited) {
-            visited &= map.visited;
-            this.core.save.map_visited = visited;
-            this.db.map.visited = visited;
+        if (this.db.map.visible !== visible) {
+            this.db.map.visible |= visible;
+            needUpdate = true;
+        }
+
+        if (this.db.map.visited !== visited) {
+            this.db.map.visited |= visited;
             needUpdate = true;
         }
 
         // Process Changes
         if (!needUpdate) return;
 
+        this.db.map.mini = bufData;
+        this.core.save.map.mini = this.db.map.mini;
+        this.core.save.map.visible = this.db.map.visible;
+        this.core.save.map.visited = this.db.map.visited;
+
         // Send changes to server
-        let pData = new Net.SyncMap(this.ModLoader.clientLobby, visible, visited, false);
+        let pData = new Net.SyncMap(this.ModLoader.clientLobby, this.db.map, false);
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
@@ -888,12 +903,20 @@ export class MmOnline implements IPlugin {
     init(): void { }
 
     postinit(): void {
-        if (this.rom !== undefined) {
-            // Set tunic color
-            let tools = new Z64RomTools(this.ModLoader, 0x1a500);
-            let buf = tools.decompressFileFromRom(this.rom, 654);
-            this.core.player.tunic_color = buf.readInt32BE(0xb39c);
-        }
+        // Is Client or Server check
+        if (this.rom === undefined) return;
+
+        let tools: Z64RomTools;
+        let buf: Buffer;
+
+        // Determine if randomizer
+        buf = this.rom.slice(0x0001a4d0, 0x0001a4db);
+        this.db.is_rando = buf.toString() === "MajoraRando";
+
+        // Set tunic color
+        tools = new Z64RomTools(this.ModLoader, 0x1a500);
+        buf = tools.decompressFileFromRom(this.rom, 654);
+        this.core.player.tunic_color = buf.readInt32BE(0xb39c);
 
         // Inject puppet zobj
         let zz = new zzstatic();
@@ -926,8 +949,9 @@ export class MmOnline implements IPlugin {
         let cutscene: number = this.core.runtime.cutscene_ptr;
         let timeCard: boolean = this.core.runtime.get_current_scene() === 0x804d;
         let zoning: boolean = this.core.runtime.is_entering_zone();
-        let isSafe: boolean = !(zoning || timeCard || cutscene !== 0 ||
-            scene === API.SceneType.VARIOUS_CUTSCENES)
+        let isSafe: boolean = !(zoning || timeCard ||
+            (!this.db.is_rando && cutscene !== 0) ||
+            scene === API.SceneType.VARIOUS_CUTSCENES);
 
         // Safety Check
         if (zoning || timeCard) scene = -1;
@@ -940,7 +964,7 @@ export class MmOnline implements IPlugin {
             !this.db.clock_init) this.reset_session(true);
 
         // General Setup/Handlers
-        this.handle_reset_time(scene);
+        this.handle_reset_time(scene, cutscene);
         this.handle_scene_change(scene, timeCard);
         this.handle_puppets(scene, isSafe);
 
@@ -962,7 +986,7 @@ export class MmOnline implements IPlugin {
         this.handle_quest_status();
         this.handle_health();
         this.handle_magic();
-        this.handle_map();
+        this.handle_map(bufData!, bufStorage!);
 
         // Sync Start Menu Items
         this.handle_equip_slots();
@@ -1046,7 +1070,7 @@ export class MmOnline implements IPlugin {
             this.ModLoader.clientLobby,
             this.ModLoader.me,
             this.curScene,
-            this.core.save.current_form
+            this.core.player.current_form
         );
         this.ModLoader.clientSide.sendPacket(pData);
     }
@@ -1677,27 +1701,37 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
         let map: Net.MapData = sDB.map;
+        let i: number;
+        let count = map.mini.byteLength;
         let needUpdate = false;
 
         // Ensure game_active check completed        
         sDB.game_active = true;
 
-        if (map.visible !== packet.visible) {
-            map.visible &= packet.visible;
+        // Detect Changes
+        for (i = 0; i < count; i++) {
+            if (map.mini[i] === packet.map.mini[i]) continue;
+            map.mini[i] |= packet.map.mini[i];
             needUpdate = true;
         }
 
-        if (map.visited !== packet.visited) {
-            map.visited &= packet.visited;
+        if (map.visible !== packet.map.visible) {
+            map.visible |= packet.map.visible;
             needUpdate = true;
         }
 
+        if (map.visited !== packet.map.visited) {
+            map.visited |= packet.map.visited;
+            needUpdate = true;
+        }
+
+        // Process Changes
         if (!needUpdate) return;
 
         sDB.map = map;
 
         // Send changes to clients
-        let pData = new Net.SyncMap(packet.lobby, map.visible, map.visited, true);
+        let pData = new Net.SyncMap(packet.lobby, map, true);
         this.ModLoader.serverSide.sendPacket(pData);
 
         this.ModLoader.logger.info('[Server] Updated: {map}');
@@ -1845,7 +1879,7 @@ export class MmOnline implements IPlugin {
                 this.ModLoader.clientLobby,
                 this.ModLoader.me,
                 API.SceneType.VARIOUS_CUTSCENES,
-                this.core.save.current_form
+                this.core.player.current_form
             )
         );
     }
@@ -2328,15 +2362,24 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let map: Net.MapData = this.db.map;
+        let i: number;
+        let count = map.mini.byteLength;
         let needUpdate = false;
 
-        if (map.visible !== packet.visible) {
-            map.visible &= packet.visible;
+        // Detect Changes
+        for (i = 0; i < count; i++) {
+            if (map.mini[i] === packet.map.mini[i]) continue;
+            map.mini[i] |= packet.map.mini[i];
             needUpdate = true;
         }
 
-        if (map.visited !== packet.visited) {
-            map.visited &= packet.visited;
+        if (map.visible !== packet.map.visible) {
+            map.visible |= packet.map.visible;
+            needUpdate = true;
+        }
+
+        if (map.visited !== packet.map.visited) {
+            map.visited |= packet.map.visited;
             needUpdate = true;
         }
 
@@ -2356,7 +2399,7 @@ export class MmOnline implements IPlugin {
         // Only get in-game values
         if (!(this.core.runtime === undefined || !this.core.isPlaying)) {
             scene = this.curScene;
-            form = this.core.save.current_form;
+            form = this.core.player.current_form;
         }
 
         let pData = new Net.SyncLocation(packet.lobby, this.ModLoader.me, scene, form);
