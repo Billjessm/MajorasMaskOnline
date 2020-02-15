@@ -108,12 +108,10 @@ export class SyncClock extends Packet {
 }
 
 export class SyncMap extends Packet {
-    visible: number;
-    visited: number;
-    constructor(lobby: string, visible: number, visited: number, persist: boolean) {
+    map: DB.MapData;
+    constructor(lobby: string, map: DB.MapData, persist: boolean) {
         super('SyncMap', 'MmOnline', lobby, persist);
-        this.visible = visible;
-        this.visited = visited;
+        this.map = map;
     }
 }
 

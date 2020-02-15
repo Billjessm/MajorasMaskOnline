@@ -39,6 +39,7 @@ export class DatabaseClient extends Database {
 
     intro_buffer: number = 0;
 
+    is_rando: boolean = false;
     time_reset: boolean = false;
     clock_init: boolean = false;
 
@@ -78,6 +79,7 @@ export class ClockData {
 }
 
 export class MapData {
+    mini: Buffer = Buffer.alloc(0x1c);
     visible: number = 0;
     visited: number = 0;
 }
