@@ -20,6 +20,8 @@ export class SyncStorage extends Packet {
     clock: DB.ClockData;
     dungeon: DB.DungeonData;
     map: DB.MapData;
+    skill_level: number;
+    wallet: number;
     game_active: boolean;
 
     constructor(
@@ -40,6 +42,8 @@ export class SyncStorage extends Packet {
         clock: DB.ClockData,
         dungeon: DB.DungeonData,
         map: DB.MapData,
+        skill_level: number,
+        wallet: number,
         game_active: boolean
     ) {
         super('SyncStorage', 'MmOnline', lobby, false);
@@ -59,6 +63,8 @@ export class SyncStorage extends Packet {
         this.clock = clock;
         this.dungeon = dungeon;
         this.map = map;
+        this.skill_level = skill_level;
+        this.wallet = wallet;
         this.game_active = game_active;
     }
 }
@@ -145,14 +151,6 @@ export class SyncHealth extends Packet {
         this.containers = containers;
         this.double_defense = double_defense;
         this.pieces = pieces;
-    }
-}
-
-export class SyncMagic extends Packet {
-    bar: number;
-    constructor(lobby: string, bar: number, persist: boolean) {
-        super('SyncMagic', "MmOnline", lobby, persist);
-        this.bar = bar;
     }
 }
 

@@ -5,12 +5,14 @@ export class Database {
     event_flags: Buffer = Buffer.alloc(0x64);
     game_flags: Buffer = Buffer.alloc(0x0d20);
     owl_flags: Buffer = Buffer.alloc(0x02);
-    intro_state: number = 0;
 
     scene_data: any = {};
 
     bank: number = 0;
+    intro_state: number = 0;
     quest_status: number = 0;
+    skill_level: number = 0;
+    wallet: number = 0;
 
     clock: ClockData = new ClockData();
     dungeon: DungeonData = new DungeonData();
@@ -20,7 +22,6 @@ export class Database {
     map: MapData = new MapData();
     items: Buffer = Buffer.alloc(0x18, -1);
     masks: Buffer = Buffer.alloc(0x18, -1);
-
 
     // Has Started Game Check
     game_active: boolean = false;
@@ -49,6 +50,7 @@ export class DatabaseClient extends Database {
     event_need_update: boolean = false;
 
     bank_need_update: boolean = false;
+    c_buttons_need_update: boolean = false;
     keys_need_update: boolean = false;
     health_need_update: boolean = false;
     trade_need_update: boolean = false;
