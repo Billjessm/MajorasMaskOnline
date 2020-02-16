@@ -66,9 +66,10 @@ export class MmOnline implements IPlugin {
         this.db.cycle_need_update = true;
         this.db.event_need_update = true;
 
-        this.db.health_need_update = true;
         if (this.db.game_active) {
             this.db.bank_need_update = true;
+            this.db.health_need_update = true;
+            this.db.keys_need_update = true;
             this.db.trade_need_update = true;
             this.db.bottles_need_update = true;
         }
@@ -764,17 +765,14 @@ export class MmOnline implements IPlugin {
         if (this.db.timeless) return;
 
         if (this.db.clock_need_update) {
-            // Time sync feature only
-            if (!this.db.timeless) {
-                this.core.save.clock.current_day = this.db.clock.current_day;
-                this.core.save.clock.elapsed = this.db.clock.elapsed;
-                this.core.save.clock.current_day = this.db.clock.current_day;
-                this.core.save.clock.elapsed = this.db.clock.elapsed;
-                this.core.save.clock.is_night = this.db.clock.is_night;
-                this.core.save.clock.speed = this.db.clock.speed;
-                this.core.save.clock.time = this.db.clock.time;
-                this.db.clock_live = this.db.clock;
-            }
+            this.core.save.clock.current_day = this.db.clock.current_day;
+            this.core.save.clock.elapsed = this.db.clock.elapsed;
+            this.core.save.clock.current_day = this.db.clock.current_day;
+            this.core.save.clock.elapsed = this.db.clock.elapsed;
+            this.core.save.clock.is_night = this.db.clock.is_night;
+            this.core.save.clock.speed = this.db.clock.speed;
+            this.core.save.clock.time = this.db.clock.time;
+            this.db.clock_live = this.db.clock;
             this.db.clock_need_update = false;
             return;
         }
@@ -850,6 +848,55 @@ export class MmOnline implements IPlugin {
         // Send time
         pData = new Net.SyncClock(this.ModLoader.clientLobby, clock, false);
         this.ModLoader.clientSide.sendPacket(pData);
+    }
+
+    handle_dungeon() {
+        // Time sync feature only
+        if (this.db.timeless) return;
+
+        if (this.db.keys_need_update) {
+            this.core.save.dungeon_keys.raw = this.db.dungeon.keys;
+            this.db.keys_need_update = false;
+        }
+
+        // Initializers
+        let fairies = this.core.save.dungeon_fairies.raw;
+        let items = this.core.save.dungeon_items.raw;
+        let keys = this.core.save.dungeon_keys.raw;
+        let needUpdate = false;
+
+        if (fairies < this.db.dungeon.fairies) {
+            this.core.save.dungeon_fairies.raw = this.db.dungeon.fairies;
+        } else if (fairies > this.db.dungeon.fairies) {
+            this.db.dungeon.fairies = fairies;
+            needUpdate = true;
+        }
+
+        if (items < this.db.dungeon.items) {
+            this.core.save.dungeon_items.raw = this.db.dungeon.items;
+        } else if (items > this.db.dungeon.items) {
+            this.db.dungeon.items = items;
+            needUpdate = true;
+        }
+
+        if (keys !== this.db.dungeon.keys) {
+            this.db.dungeon.keys = keys;
+            needUpdate = true;
+        }
+
+        // Process Changes
+        if (!needUpdate) return;
+
+        // Send changes to server
+        let pData = new Net.SyncDungeon(
+            this.ModLoader.clientLobby,
+            this.db.dungeon.fairies,
+            this.db.dungeon.items,
+            this.db.dungeon.keys,
+            false
+        );
+        this.ModLoader.clientSide.sendPacket(pData);
+
     }
 
     handle_map(bufData: Buffer, bufStorage: Buffer) {
@@ -984,6 +1031,7 @@ export class MmOnline implements IPlugin {
         // Sync Misc
         this.handle_bank();
         this.handle_quest_status();
+        this.handle_dungeon();
         this.handle_health();
         this.handle_magic();
         this.handle_map(bufData!, bufStorage!);
@@ -1109,6 +1157,7 @@ export class MmOnline implements IPlugin {
             sDB.items,
             sDB.masks,
             sDB.clock,
+            sDB.dungeon,
             sDB.map,
             sDB.game_active
         );
@@ -1163,6 +1212,7 @@ export class MmOnline implements IPlugin {
         Object.keys(sDB.scene_data).forEach((key: string) => {
             sDB.scene_data[key] = new Net.SceneData();
         });
+        sDB.dungeon = new Net.DungeonData();
 
         // Reset time
         sDB.clock.current_day = 1;
@@ -1694,6 +1744,48 @@ export class MmOnline implements IPlugin {
         }
     }
 
+    @ServerNetworkHandler("SyncDungeon")
+    onServer_SyncDungeon(packet: Net.SyncDungeon): void {
+        this.ModLoader.logger.info('[Server] Received: {Dungeon}');
+
+        // Initializers
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        let needUpdate = false;
+
+        // Ensure game_active check completed        
+        sDB.game_active = true;
+
+        if (sDB.dungeon.fairies < packet.fairies) {
+            sDB.dungeon.fairies = packet.fairies;
+            needUpdate = true;
+        }
+
+        if (sDB.dungeon.items < packet.items) {
+            sDB.dungeon.items = packet.items;
+            needUpdate = true;
+        }
+
+        if (sDB.dungeon.keys !== packet.keys) {
+            sDB.dungeon.keys = packet.keys;
+            needUpdate = true;
+        }
+
+        // Process Changes
+        if (!needUpdate) return;
+
+        // Send changes to clients
+        let pData = new Net.SyncDungeon(
+            packet.lobby,
+            sDB.dungeon.fairies,
+            sDB.dungeon.items,
+            sDB.dungeon.keys,
+            true
+        );
+        this.ModLoader.serverSide.sendPacket(pData);
+
+        this.ModLoader.logger.info('[Server] Updated: {Dungeon}');
+    }
+
     @ServerNetworkHandler('SyncMap')
     onServer_SyncMap(packet: Net.SyncMap): void {
         this.ModLoader.logger.info('[Server] Received: {Map}');
@@ -1734,7 +1826,7 @@ export class MmOnline implements IPlugin {
         let pData = new Net.SyncMap(packet.lobby, map, true);
         this.ModLoader.serverSide.sendPacket(pData);
 
-        this.ModLoader.logger.info('[Server] Updated: {map}');
+        this.ModLoader.logger.info('[Server] Updated: {Map}');
     }
 
     // Puppet Tracking
@@ -1826,6 +1918,7 @@ export class MmOnline implements IPlugin {
         Object.keys(this.db.scene_data).forEach((key: string) => {
             this.db.scene_data[key] = new Net.SceneData();
         });
+        this.db.dungeon = new Net.DungeonData();
 
         if (this.core.isPlaying()) {
             this.core.save.cycle_flags.set_all(packet.cycle);
@@ -2351,6 +2444,41 @@ export class MmOnline implements IPlugin {
         this.db.clock_need_update = true;
 
         this.ModLoader.logger.info('[Client] Updated: {Clock}');
+    }
+
+    @NetworkHandler("SyncDungeon")
+    onClient_SyncDungeon(packet: Net.SyncDungeon): void {
+        this.ModLoader.logger.info('[Client] Received: {Dungeon}');
+
+        // Ensure game_active check completed        
+        this.db.game_active = true;
+
+        // Time sync feature only
+        if (this.db.timeless) return;
+
+        // Initializers
+        let needUpdate = false;
+
+        if (this.db.dungeon.fairies < packet.fairies) {
+            this.db.dungeon.fairies = packet.fairies;
+            needUpdate = true;
+        }
+
+        if (this.db.dungeon.items < packet.items) {
+            this.db.dungeon.items = packet.items;
+            needUpdate = true;
+        }
+
+        if (this.db.dungeon.keys !== packet.keys) {
+            this.db.dungeon.keys = packet.keys;
+            this.db.keys_need_update = true;
+            needUpdate = true;
+        }
+
+        // Process Changes
+        if (!needUpdate) return;
+
+        this.ModLoader.logger.info('[Client] Updated: {Dungeon}');
     }
 
     @NetworkHandler('SyncMap')

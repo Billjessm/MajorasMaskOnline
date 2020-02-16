@@ -18,6 +18,7 @@ export class SyncStorage extends Packet {
     items: Buffer;
     masks: Buffer;
     clock: DB.ClockData;
+    dungeon: DB.DungeonData;
     map: DB.MapData;
     game_active: boolean;
 
@@ -37,6 +38,7 @@ export class SyncStorage extends Packet {
         items: Buffer,
         masks: Buffer,
         clock: DB.ClockData,
+        dungeon: DB.DungeonData,
         map: DB.MapData,
         game_active: boolean
     ) {
@@ -55,6 +57,7 @@ export class SyncStorage extends Packet {
         this.items = items;
         this.masks = masks;
         this.clock = clock;
+        this.dungeon = dungeon;
         this.map = map;
         this.game_active = game_active;
     }
@@ -89,16 +92,6 @@ export class SyncNumbered extends Packet {
     }
 }
 
-export class SyncSceneData extends Packet {
-    scene: number;
-    flags: Buffer;
-    constructor(lobby: string, scene: number, flags: Buffer, persist: boolean) {
-        super('SyncSceneData', 'MmOnline', lobby, persist);
-        this.scene = scene;
-        this.flags = flags;
-    }
-}
-
 export class SyncClock extends Packet {
     clock: DB.ClockData;
     constructor(lobby: string, clock: DB.ClockData, persist: boolean) {
@@ -107,11 +100,33 @@ export class SyncClock extends Packet {
     }
 }
 
-export class SyncMap extends Packet {
-    map: DB.MapData;
-    constructor(lobby: string, map: DB.MapData, persist: boolean) {
-        super('SyncMap', 'MmOnline', lobby, persist);
-        this.map = map;
+export class SyncDungeon extends Packet {
+    fairies: number;
+    items: number;
+    keys: number;
+    constructor(
+        lobby: string,
+        fairies: number,
+        items: number,
+        keys: number,
+        persist: boolean
+    ) {
+        super('SyncDungeon', 'MmOnline', lobby, persist);
+        this.fairies = fairies;
+        this.items = items;
+        this.keys = keys;
+    }
+}
+
+export class SyncEquipSlots extends Packet {
+    equips: DB.EquipData;
+    constructor(
+        lobby: string,
+        equips: DB.EquipData,
+        persist: boolean
+    ) {
+        super('SyncEquipSlots', 'MmOnline', lobby, persist);
+        this.equips = equips;
     }
 }
 
@@ -141,15 +156,21 @@ export class SyncMagic extends Packet {
     }
 }
 
-export class SyncEquipSlots extends Packet {
-    equips: DB.EquipData;
-    constructor(
-        lobby: string,
-        equips: DB.EquipData,
-        persist: boolean
-    ) {
-        super('SyncEquipSlots', 'MmOnline', lobby, persist);
-        this.equips = equips;
+export class SyncMap extends Packet {
+    map: DB.MapData;
+    constructor(lobby: string, map: DB.MapData, persist: boolean) {
+        super('SyncMap', 'MmOnline', lobby, persist);
+        this.map = map;
+    }
+}
+
+export class SyncSceneData extends Packet {
+    scene: number;
+    flags: Buffer;
+    constructor(lobby: string, scene: number, flags: Buffer, persist: boolean) {
+        super('SyncSceneData', 'MmOnline', lobby, persist);
+        this.scene = scene;
+        this.flags = flags;
     }
 }
 
@@ -167,6 +188,7 @@ export class SyncTimeReset extends Packet {
         this.events = events;
     }
 }
+
 
 // #################################################
 // ##  Puppet Tracking

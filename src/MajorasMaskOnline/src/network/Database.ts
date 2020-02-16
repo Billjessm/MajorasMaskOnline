@@ -12,14 +12,15 @@ export class Database {
     bank: number = 0;
     quest_status: number = 0;
 
+    clock: ClockData = new ClockData();
+    dungeon: DungeonData = new DungeonData();
+    equips: EquipData = new EquipData();
     health: HealthData = new HealthData();
     magic: MagicData = new MagicData();
-    equips: EquipData = new EquipData();
+    map: MapData = new MapData();
     items: Buffer = Buffer.alloc(0x18, -1);
     masks: Buffer = Buffer.alloc(0x18, -1);
 
-    clock: ClockData = new ClockData();
-    map: MapData = new MapData();
 
     // Has Started Game Check
     game_active: boolean = false;
@@ -48,6 +49,7 @@ export class DatabaseClient extends Database {
     event_need_update: boolean = false;
 
     bank_need_update: boolean = false;
+    keys_need_update: boolean = false;
     health_need_update: boolean = false;
     trade_need_update: boolean = false;
     bottles_need_update: boolean = false;
@@ -65,10 +67,6 @@ export class DatabaseServer extends Database {
     hasConfig: boolean = false;
 }
 
-export class SceneData {
-    flags: Buffer = Buffer.alloc(0x14);
-}
-
 export class ClockData {
     current_day: number = 0;
     elapsed: number = 0;
@@ -78,10 +76,10 @@ export class ClockData {
     is_started: boolean = false;
 }
 
-export class MapData {
-    mini: Buffer = Buffer.alloc(0x1c);
-    visible: number = 0;
-    visited: number = 0;
+export class DungeonData {
+    fairies: number = 0;
+    items: number = 0;
+    keys: number = 0;
 }
 
 export class HealthData {
@@ -99,4 +97,14 @@ export class EquipData {
     shield: API.ShieldBmp = API.ShieldBmp.HERO;
     bomb_bag: API.BombBagBmp = API.BombBagBmp.NONE;
     quiver: API.QuiverBmp = API.QuiverBmp.NONE;
+}
+
+export class MapData {
+    mini: Buffer = Buffer.alloc(0x1c);
+    visible: number = 0;
+    visited: number = 0;
+}
+
+export class SceneData {
+    flags: Buffer = Buffer.alloc(0x14);
 }
