@@ -22,7 +22,8 @@ export class SyncStorage extends Packet {
     map: DB.MapData;
     skill_level: number;
     wallet: number;
-    game_active: boolean;
+    has_game_data: boolean;
+    has_game_plyr: boolean;
 
     constructor(
         lobby: string,
@@ -44,7 +45,8 @@ export class SyncStorage extends Packet {
         map: DB.MapData,
         skill_level: number,
         wallet: number,
-        game_active: boolean
+        has_game_data: boolean,
+        has_game_plyr: boolean
     ) {
         super('SyncStorage', 'MmOnline', lobby, false);
         this.cycle_flags = cycle_flags;
@@ -65,7 +67,8 @@ export class SyncStorage extends Packet {
         this.map = map;
         this.skill_level = skill_level;
         this.wallet = wallet;
-        this.game_active = game_active;
+        this.has_game_data = has_game_data;
+        this.has_game_plyr = has_game_plyr;
     }
 }
 

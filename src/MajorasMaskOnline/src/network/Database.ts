@@ -24,7 +24,8 @@ export class Database {
     masks: Buffer = Buffer.alloc(0x18, -1);
 
     // Has Started Game Check
-    game_active: boolean = false;
+    has_game_data: boolean = false;
+    has_game_plyr: boolean = false;
 
     // Prevent duplicate day increments on clock
     time_card_state: number = 0;
@@ -41,9 +42,9 @@ export class DatabaseClient extends Database {
 
     intro_buffer: number = 0;
 
+    in_game: boolean = false;
     is_rando: boolean = false;
     time_reset: boolean = false;
-    clock_init: boolean = false;
 
     clock_need_update: boolean = false;
     cycle_need_update: boolean = false;
@@ -75,7 +76,6 @@ export class ClockData {
     speed: number = 0;
     time: number = 0;
     is_night: boolean = false;
-    is_started: boolean = false;
 }
 
 export class DungeonData {

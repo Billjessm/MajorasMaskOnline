@@ -45,7 +45,7 @@ export class MmOnline implements IPlugin {
     pMgr!: Puppet.PuppetManager;
     protected curScene: number = -1;
 
-    configPath: string = "./MajorasMaskOnline.json";
+    configPath: string = './MajorasMaskOnline.json';
     config: IConfig = {
         timeless_mode: false,
         print_events: false
@@ -57,24 +57,18 @@ export class MmOnline implements IPlugin {
         else return API.SceneType[val];
     }
 
-    reset_session(flagsOnly: boolean) {
-        if (!flagsOnly) {
-            this.db.clock_init = false;
-        }
-
+    reset_session() {
         if (!this.db.timeless) {
             this.db.clock_need_update = true;
             this.db.cycle_need_update = true;
             this.db.event_need_update = true;
         }
 
-        if (this.db.game_active) {
-            this.db.bank_need_update = true;
-            this.db.health_need_update = true;
-            this.db.keys_need_update = true;
-            this.db.trade_need_update = true;
-            this.db.bottles_need_update = true;
-        }
+        this.db.bank_need_update = true;
+        this.db.health_need_update = true;
+        this.db.keys_need_update = true;
+        this.db.trade_need_update = true;
+        this.db.bottles_need_update = true;
     }
 
     check_db_instance(db: Net.Database, scene: number) {
@@ -90,8 +84,8 @@ export class MmOnline implements IPlugin {
         if (scene !== API.SceneType.VARIOUS_CUTSCENES) return;
 
         // Make sure we are invoking ocarina reset time
-        if ((this.db.is_rando && cutscene === 0x8072e1d0) ||
-            cutscene === 0x8072d7d0) return;
+        if (!((this.db.is_rando && cutscene === 0x8072e1d0) ||
+            cutscene === 0x8072d7d0)) return;
 
         // Time sync feature only -- Only fix inventory
         if (this.db.timeless) {
@@ -117,10 +111,7 @@ export class MmOnline implements IPlugin {
         if (scene === this.curScene) return;
 
         // Clock can begin functioning
-        if (timeCard) {
-            this.db.clock_init = true;
-            this.db.time_reset = false;
-        }
+        if (timeCard) this.db.time_reset = false;
 
         // Set global to current scene value
         this.curScene = scene;
@@ -235,7 +226,7 @@ export class MmOnline implements IPlugin {
                 needUpdate = true;
 
                 if (this.config.print_events)
-                    this.ModLoader.logger.info("Event: [" + i + "] triggered.");
+                    this.ModLoader.logger.info('Event: [' + i + '] triggered.');
             }
 
             // Bomber kid exclusion
@@ -344,39 +335,53 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_intro_flag(scene: number) {
+    handle_intro_flag(scene: number, timeCard: boolean) {
         // Initializers
         let pData: Net.SyncNumbered;
         let stateData: number;
         let stateStorage: number
-        let needUpdate = false;
 
         stateData = this.core.save.intro_flag;
         stateStorage = this.db.intro_state;
 
-        if (stateData < stateStorage) {
-            // Make sure we are on cutscene map
-            if (scene !== API.SceneType.VARIOUS_CUTSCENES) return;
+        if (!this.db.in_game) {
+            // Delay checks
             if (this.db.intro_buffer < 20) {
                 this.db.intro_buffer += 1;
                 return;
             }
 
-            this.core.save.intro_flag = stateStorage;
-            this.core.player.current_form = API.FormType.DEKU;
-            this.core.save.have_tatl = true;
-            this.core.runtime.goto_scene(0x0000D800);
-            return;
-        } else if (stateData > stateStorage) {
-            this.db.intro_state = stateData;
-            needUpdate = true;
+            // Dont record entry time on timeCard
+            if (timeCard) return;
+
+            // First player check
+            if (this.db.has_game_plyr) {
+                // Check for new profile
+                if (stateData < stateStorage) {
+                    this.core.save.intro_flag = stateStorage;
+                    this.core.save.have_tatl = true;
+                    this.core.player.current_form = API.FormType.DEKU;
+
+                    // Warp to clock tower entrance
+                    this.core.runtime.goto_scene(0x0000D800);
+                }
+            } else this.db.clock.time += 1;
+
+            // Alert player is in game!
+            this.db.in_game = true;
+            this.db.has_game_plyr = true;
+            this.ModLoader.clientSide.sendPacket(
+                new Packet('SyncPlayerInGame', 'MmOnline', this.ModLoader.clientLobby, true)
+            );
         }
 
-        // Process Changes
-        if (!needUpdate) return;
+        // Notify intro complete
+        if (stateData > stateStorage) {
+            this.db.intro_state = stateData;
 
-        pData = new Net.SyncNumbered(this.ModLoader.clientLobby, 'SyncIntroState', stateData, false);
-        this.ModLoader.clientSide.sendPacket(pData);
+            pData = new Net.SyncNumbered(this.ModLoader.clientLobby, 'SyncIntroState', stateData, false);
+            this.ModLoader.clientSide.sendPacket(pData);
+        }
     }
 
     handle_scene_data(bufData: Buffer, bufStorage: Buffer) {
@@ -437,6 +442,9 @@ export class MmOnline implements IPlugin {
         // Time sync feature only
         if (this.db.timeless) return;
 
+        // First player time card fix
+        if (!this.db.has_game_plyr) return;
+
         if (this.db.clock_need_update) {
             this.core.save.clock.current_day = this.db.clock.current_day;
             this.core.save.clock.elapsed = this.db.clock.elapsed;
@@ -450,8 +458,6 @@ export class MmOnline implements IPlugin {
             return;
         }
 
-        if (!this.db.clock_init) return;
-
         // Initializers
         let clock = new Net.ClockData();
         clock.current_day = this.core.save.clock.current_day;
@@ -459,7 +465,6 @@ export class MmOnline implements IPlugin {
         clock.is_night = this.core.save.clock.is_night;
         clock.speed = this.core.save.clock.speed;
         clock.time = this.core.save.clock.time;
-        clock.is_started = true;
 
         let pData: Net.SyncClock;
         let timeData = Math.floor(clock.time / 0x1000);
@@ -508,15 +513,15 @@ export class MmOnline implements IPlugin {
         // Save time
         this.db.clock = clock;
 
-        // console.log("#################################")
-        // console.log("CLOCK:   ")
-        // console.log("CLOCK:   " + this.db.clock.current_day)
-        // console.log("CLOCK:   " + this.db.clock.elapsed)
-        // console.log("CLOCK:   " + this.db.clock.is_night)
-        // console.log("CLOCK:   " + this.db.clock.speed)
-        // console.log("CLOCK:   " + this.db.clock.time)
-        // console.log("CLOCK:   ")
-        // console.log("#################################")
+        // console.log('#################################')
+        // console.log('CLOCK:   ')
+        // console.log('CLOCK:   ' + this.db.clock.current_day)
+        // console.log('CLOCK:   ' + this.db.clock.elapsed)
+        // console.log('CLOCK:   ' + this.db.clock.is_night)
+        // console.log('CLOCK:   ' + this.db.clock.speed)
+        // console.log('CLOCK:   ' + this.db.clock.time)
+        // console.log('CLOCK:   ')
+        // console.log('#################################')
 
         // Send time
         pData = new Net.SyncClock(this.ModLoader.clientLobby, clock, false);
@@ -1016,8 +1021,6 @@ export class MmOnline implements IPlugin {
         }
 
         if (this.db.c_buttons_need_update) {
-            console.log(this.core.runtime.c_down.toString(16) + " , " + this.core.runtime.c_down_equipped.toString(16))
-
             let left = this.core.runtime.c_left_equipped;
             let down = this.core.runtime.c_down_equipped;
             let right = this.core.runtime.c_right_equipped;
@@ -1047,7 +1050,7 @@ export class MmOnline implements IPlugin {
 
         // Determine if randomizer
         buf = this.rom.slice(0x0001a4d0, 0x0001a4db);
-        this.db.is_rando = buf.toString() === "MajoraRando";
+        this.db.is_rando = buf.toString() === 'MajoraRando';
 
         // Set tunic color
         tools = new Z64RomTools(this.ModLoader, 0x1a500);
@@ -1073,8 +1076,10 @@ export class MmOnline implements IPlugin {
     onTick(): void {
         // Make sure we dont process game when not playing
         if (!this.core.isPlaying()) {
-            if (this.core.isTitleScreen() &&
-                this.db.game_active) this.reset_session(false);
+            if (this.core.isTitleScreen() && this.db.has_game_data)
+                this.reset_session();
+
+            this.db.in_game = false;
             return;
         }
 
@@ -1089,15 +1094,15 @@ export class MmOnline implements IPlugin {
             (!this.db.is_rando && cutscene !== 0) ||
             scene === API.SceneType.VARIOUS_CUTSCENES);
 
-        // Safety Check
+        // Safety Checks
         if (zoning || timeCard) scene = -1;
 
         // Intro skip
-        this.handle_intro_flag(scene);
+        this.handle_intro_flag(scene, timeCard);
 
         // Day transition handler
-        if (this.db.clock.is_started &&
-            !this.db.clock_init) this.reset_session(true);
+        if (this.db.has_game_plyr && !this.db.in_game)
+            this.db.clock_need_update = true;
 
         // General Setup/Handlers
         this.handle_reset_time(scene, cutscene);
@@ -1105,7 +1110,7 @@ export class MmOnline implements IPlugin {
         this.handle_puppets(scene, isSafe);
 
         // Need to finish resetting the cycle
-        if (this.db.time_reset) return;
+        if (!this.db.timeless && this.db.time_reset) return;
 
         // Sync Specials
         this.handle_clock(scene);
@@ -1255,7 +1260,8 @@ export class MmOnline implements IPlugin {
             sDB.map,
             sDB.skill_level,
             sDB.wallet,
-            sDB.game_active
+            sDB.has_game_data,
+            sDB.has_game_plyr
         );
         this.ModLoader.serverSide.sendPacketToSpecificPlayer(pData, packet.player);
     }
@@ -1282,6 +1288,13 @@ export class MmOnline implements IPlugin {
             true
         );
         this.ModLoader.serverSide.sendPacket(pData);
+    }
+
+    @ServerNetworkHandler('SyncPlayerInGame')
+    onServer_SyncPlayerInGame(packet: Packet): void {
+        this.ModLoader.logger.info('[Server] Received: {Player Entered Game}');
+        let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+        sDB.has_game_plyr = true;
     }
 
     @ServerNetworkHandler('SyncTimeReset')
@@ -1344,8 +1357,8 @@ export class MmOnline implements IPlugin {
         let i = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1380,8 +1393,8 @@ export class MmOnline implements IPlugin {
         let i = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1409,8 +1422,8 @@ export class MmOnline implements IPlugin {
         let i = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1438,8 +1451,8 @@ export class MmOnline implements IPlugin {
         let i = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.value[i]) continue;
@@ -1465,8 +1478,8 @@ export class MmOnline implements IPlugin {
         let data: number = sDB.intro_state;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (data >= packet.value) return;
         sDB.intro_state = packet.value;
@@ -1479,7 +1492,7 @@ export class MmOnline implements IPlugin {
 
     @ServerNetworkHandler('SyncSceneData')
     onServer_SyncSceneData(packet: Net.SyncSceneData) {
-        this.ModLoader.logger.info('[Server] Received: {Scene Data}');
+        this.ModLoader.logger.info('[Server] Received: {Scene Flags}');
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
@@ -1497,8 +1510,8 @@ export class MmOnline implements IPlugin {
         let i = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         for (i = 0; i < count; i++) {
             if (data[i] === packet.flags[i]) continue;
@@ -1525,8 +1538,8 @@ export class MmOnline implements IPlugin {
         let count: number = sDB.bank;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (count !== packet.value) needUpdate = true;
 
@@ -1564,8 +1577,8 @@ export class MmOnline implements IPlugin {
         if (needUpdate) {
             sDB.clock = packet.clock;
 
-            // Ensure game_active check completed        
-            sDB.game_active = true;
+            // Ensure has_game_data check completed        
+            sDB.has_game_data = true;
 
             // Send changes to clients
             let pData = new Net.SyncClock(packet.lobby, sDB.clock, true);
@@ -1579,7 +1592,7 @@ export class MmOnline implements IPlugin {
         }
     }
 
-    @ServerNetworkHandler("SyncDungeon")
+    @ServerNetworkHandler('SyncDungeon')
     onServer_SyncDungeon(packet: Net.SyncDungeon): void {
         this.ModLoader.logger.info('[Server] Received: {Dungeon}');
 
@@ -1587,8 +1600,8 @@ export class MmOnline implements IPlugin {
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (sDB.dungeon.fairies < packet.fairies) {
             sDB.dungeon.fairies = packet.fairies;
@@ -1630,8 +1643,8 @@ export class MmOnline implements IPlugin {
         let health: Net.HealthData = sDB.health;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (health.containers < packet.containers) {
             health.containers = packet.containers;
@@ -1674,8 +1687,8 @@ export class MmOnline implements IPlugin {
         let magic: Net.MagicData = sDB.magic;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (magic.bar < packet.value) {
             magic.bar = packet.value;
@@ -1704,8 +1717,8 @@ export class MmOnline implements IPlugin {
         let count = map.mini.byteLength;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         // Detect Changes
         for (i = 0; i < count; i++) {
@@ -1745,8 +1758,8 @@ export class MmOnline implements IPlugin {
         let status: number = sDB.quest_status;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (status !== packet.value) {
             status |= packet.value;
@@ -1771,8 +1784,8 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (sDB.skill_level < packet.value) {
             sDB.skill_level = packet.value;
@@ -1792,8 +1805,8 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (sDB.wallet < packet.value) {
             sDB.wallet = packet.value;
@@ -1817,8 +1830,8 @@ export class MmOnline implements IPlugin {
         let val2: number;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         if (equips.sword < packet.equips.sword) {
             equips.sword = packet.equips.sword;
@@ -1876,8 +1889,8 @@ export class MmOnline implements IPlugin {
         let y = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         // Normal items with upgrades
         for (i = 0; i < 3; i++) {
@@ -1943,8 +1956,8 @@ export class MmOnline implements IPlugin {
         let i = 0;
         let needUpdate = false;
 
-        // Ensure game_active check completed        
-        sDB.game_active = true;
+        // Ensure has_game_data check completed        
+        sDB.has_game_data = true;
 
         for (i = 0; i < count; i++) {
             val1 = data[i] !== 255 ? data[i] : -1;
@@ -2034,7 +2047,8 @@ export class MmOnline implements IPlugin {
         this.db.map = packet.map;
         this.db.skill_level = packet.skill_level;
         this.db.wallet = packet.wallet;
-        this.db.game_active = packet.game_active;
+        this.db.has_game_data = packet.has_game_data;
+        this.db.has_game_plyr = packet.has_game_plyr;
     }
 
     @NetworkHandler('SyncConfig')
@@ -2042,6 +2056,13 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Updated: {Lobby Config}');
 
         this.db.timeless = packet.timeless;
+    }
+
+    @NetworkHandler('SyncPlayerInGame')
+    onClient_SyncPlayerInGame(packet: Net.SyncStorage): void {
+        var insert = 'Player[' + packet.player.nickname + '] Entered Game';
+        this.ModLoader.logger.info('[Client] Received: {' + insert + '}');
+        this.db.has_game_plyr = true;
     }
 
     @NetworkHandler('SyncTimeReset')
@@ -2123,8 +2144,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncCycleFlags(packet: Net.SyncBuffered) {
         this.ModLoader.logger.info('[Client] Received: {Cycle Flags}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Time sync feature only
         if (this.db.timeless) return;
@@ -2151,8 +2172,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncEventFlags(packet: Net.SyncBuffered) {
         this.ModLoader.logger.info('[Client] Received: {Event Flags}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Time sync feature only
         if (this.db.timeless) return;
@@ -2179,8 +2200,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncGameFlags(packet: Net.SyncBuffered) {
         this.ModLoader.logger.info('[Client] Received: {Game Flags}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         let data: Buffer = this.db.game_flags;
         let count: number = data.byteLength;
@@ -2204,8 +2225,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncOwlFlags(packet: Net.SyncBuffered) {
         this.ModLoader.logger.info('[Client] Received: {Owl Flags}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         let data: Buffer = this.db.owl_flags;
         let count: number = data.byteLength;
@@ -2229,8 +2250,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncIntroState(packet: Net.SyncNumbered) {
         this.ModLoader.logger.info('[Client] Received: {Intro State Flags}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         let data: number = this.db.intro_state;
         if (data >= packet.value) return;
@@ -2243,8 +2264,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncSceneData(packet: Net.SyncSceneData) {
         this.ModLoader.logger.info('[Client] Received: {Scene Flags}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Time sync feature only
         if (this.db.timeless) return;
@@ -2274,8 +2295,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncBank(packet: Net.SyncNumbered): void {
         this.ModLoader.logger.info('[Client] Received: {Bank Balance}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let count: number = this.db.bank;
@@ -2295,8 +2316,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncClock(packet: Net.SyncClock): void {
         this.ModLoader.logger.info('[Client] Received: {Clock}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Time sync feature only
         if (this.db.timeless) return;
@@ -2321,12 +2342,12 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Client] Updated: {Clock}');
     }
 
-    @NetworkHandler("SyncDungeon")
+    @NetworkHandler('SyncDungeon')
     onClient_SyncDungeon(packet: Net.SyncDungeon): void {
         this.ModLoader.logger.info('[Client] Received: {Dungeon}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Time sync feature only
         if (this.db.timeless) return;
@@ -2360,8 +2381,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncHealth(packet: Net.SyncHealth): void {
         this.ModLoader.logger.info('[Client] Received: {Health}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let health: Net.HealthData = this.db.health;
@@ -2394,8 +2415,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncMagic(packet: Net.SyncNumbered): void {
         this.ModLoader.logger.info('[Client] Received: {Magic}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let magic: Net.MagicData = this.db.magic;
@@ -2417,8 +2438,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncMap(packet: Net.SyncMap): void {
         this.ModLoader.logger.info('[Client] Received: {Map}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let map: Net.MapData = this.db.map;
@@ -2454,8 +2475,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncQuestStatus(packet: Net.SyncNumbered): void {
         this.ModLoader.logger.info('[Client] Received: {Quest Status}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let status: number = this.db.quest_status;
@@ -2477,8 +2498,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncSkillLevel(packet: Net.SyncNumbered): void {
         this.ModLoader.logger.info('[Client] Received: {Skill Level}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         if (this.db.skill_level < packet.value) {
             this.db.skill_level = packet.value;
@@ -2490,8 +2511,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncWallet(packet: Net.SyncNumbered): void {
         this.ModLoader.logger.info('[Client] Received: {Wallet}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         if (this.db.wallet < packet.value) {
             this.db.wallet = packet.value;
@@ -2503,8 +2524,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncEquipSlots(packet: Net.SyncEquipSlots): void {
         this.ModLoader.logger.info('[Client] Received: {Equip Slots}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let equips: Net.EquipData = this.db.equips;
@@ -2553,8 +2574,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncItemSlots(packet: Net.SyncBuffered): void {
         this.ModLoader.logger.info('[Client] Received: {Item Slots}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let data: Buffer = this.db.items;
@@ -2661,8 +2682,8 @@ export class MmOnline implements IPlugin {
     onClient_SyncMaskSlots(packet: Net.SyncBuffered): void {
         this.ModLoader.logger.info('[Client] Received: {Mask Slots}');
 
-        // Ensure game_active check completed        
-        this.db.game_active = true;
+        // Ensure has_game_data check completed        
+        this.db.has_game_data = true;
 
         // Initializers
         let data: Buffer = this.db.masks;
