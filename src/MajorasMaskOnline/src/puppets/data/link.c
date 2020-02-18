@@ -95,25 +95,25 @@ static void init(entity_t *en, z64_global_t *global)
 		}
 		else if (en->puppetData.form == MM_FORM_DEKU)
 		{
-			base = 0x80910000;
+			base = 0x80920000;
 			Collision.radius = 0x10;
 			Collision.height = 0x0015;
 		}
 		else if (en->puppetData.form == MM_FORM_GORON)
 		{
-			base = 0x80920000;
+			base = 0x80940000;
 			Collision.radius = 0x10;
 			Collision.height = 0x0015;
 		}
 		else if (en->puppetData.form == MM_FORM_ZORA)
 		{
-			base = 0x80930000;
+			base = 0x80960000;
 			Collision.radius = 0x10;
 			Collision.height = 0x0015;
 		}
 		else if (en->puppetData.form == MM_FORM_FIERCE)
 		{
-			base = 0x80940000;
+			base = 0x80980000;
 			Collision.radius = 0x10;
 			Collision.height = 0x0015;
 		}

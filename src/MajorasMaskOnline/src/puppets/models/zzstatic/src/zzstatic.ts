@@ -75,7 +75,7 @@ export class zzstatic {
     buf.copy(copy);
     let zobj: Zobj = new Zobj(buf);
     let rebase = 0x80900000;
-    rebase += index * 0x100000;
+    rebase += index * 0x20000;
 
     let zzCache: zzstatic_cache = new zzstatic_cache();
 
