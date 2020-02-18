@@ -19,7 +19,7 @@ export class zzstatic_cache {
   doRepoint(index: number, buf: Buffer): Buffer {
     console.log('Loading ' + this.cache.length + ' repoints from cache.');
     let rebase = 0x80900000;
-    rebase += index * 0x100000;
+    rebase += index * 0x20000;
     for (let i = 0; i < this.cache.length; i++) {
       try {
         buf.writeUInt32BE(

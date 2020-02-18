@@ -64,11 +64,13 @@ export class MmOnline implements IPlugin {
             this.db.event_need_update = true;
         }
 
-        this.db.bank_need_update = true;
-        this.db.health_need_update = true;
-        this.db.keys_need_update = true;
-        this.db.trade_need_update = true;
-        this.db.bottles_need_update = true;
+        if (this.db.has_game_plyr) {
+            this.db.bank_need_update = true;
+            this.db.health_need_update = true;
+            this.db.keys_need_update = true;
+            this.db.trade_need_update = true;
+            this.db.bottles_need_update = true;
+        }
     }
 
     check_db_instance(db: Net.Database, scene: number) {
@@ -591,6 +593,7 @@ export class MmOnline implements IPlugin {
 
         if (hpData.containers < hpStorage.containers) {
             this.core.save.health.containers = hpStorage.containers;
+            this.core.save.health.hearts = this.db.health.containers;
         } else if (hpData.containers > hpStorage.containers) {
             hpStorage.containers = hpData.containers;
             needUpdate = true;
@@ -598,6 +601,7 @@ export class MmOnline implements IPlugin {
 
         if (hpData.double_defense < hpStorage.double_defense) {
             this.core.save.health.double_defense = hpStorage.double_defense;
+            this.core.save.health.hearts = this.db.health.containers;
         } else if (hpData.double_defense > hpStorage.double_defense) {
             hpStorage.double_defense = hpData.double_defense;
             needUpdate = true;
@@ -1058,10 +1062,30 @@ export class MmOnline implements IPlugin {
         this.core.player.tunic_color = buf.readInt32BE(0xb39c);
 
         // Inject puppet zobj
-        let zz = new zzstatic();
-        this.ModLoader.payloadManager.registerPayloadType(new OverlayPayload('.ovl'));
-        let zobjbuf = zz.doRepoint(fs.readFileSync(__dirname + '/ChildLink.zobj'), 0);
-        this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x900000, zobjbuf) }, 100);
+        {
+            let zz = new zzstatic();
+            this.ModLoader.payloadManager.registerPayloadType(new OverlayPayload('.ovl'));
+
+            // Human
+            let zChild = zz.doRepoint(fs.readFileSync(__dirname + '/Child.zobj'), 0);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x900000, zChild) }, 100);
+
+            // Deku
+            let zDeku = zz.doRepoint(fs.readFileSync(__dirname + '/Deku.zobj'), 1);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x920000, zDeku) }, 100);
+
+            // Goron
+            let zGoron = zz.doRepoint(fs.readFileSync(__dirname + '/Goron.zobj'), 2);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x940000, zGoron) }, 100);
+
+            // Zora
+            let zZora = zz.doRepoint(fs.readFileSync(__dirname + '/Zora.zobj'), 3);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x960000, zZora) }, 100);
+
+            // Fierce Deity
+            let zDeity = zz.doRepoint(fs.readFileSync(__dirname + '/Deity.zobj'), 4);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x980000, zDeity) }, 100);
+        }
 
         // Puppet Manager Inject
         this.pMgr.postinit(
