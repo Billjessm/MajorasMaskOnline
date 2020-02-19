@@ -34,8 +34,7 @@ typedef struct
 	z_color tunicColor;
 	z_color bottleColor;
 	zz_playas playasData;
-	uint32_t form;
-	uint32_t last_form;
+	uint16_t form;
 	uint8_t isHandClosed;
 	uint8_t heldItemLeft;
 	uint8_t heldItemRight;
@@ -80,52 +79,61 @@ static int8_t copyPlayerAnimFrame(entity_t *en, z64_global_t *global)
 
 static void init(entity_t *en, z64_global_t *global)
 {
-	en->puppetData.form = (uint8_t*)0x801EF690;
-
-	if (en->actor.variable < 0xFFFFFFFF)
+	uint32_t base;
+	if (en->actor.variable < 0xFFFF)
 	{
-		uint32_t base;
+		en->puppetData.form = en->actor.variable;
 		en->puppetData.playasData.isZZ = 1;
 
-		if (en->puppetData.form == MM_FORM_HUMAN)
+		if (en->puppetData.form == MM_FORM_FIERCE)
 		{
 			base = 0x80900000;
-			Collision.radius = 0x12;
-			Collision.height = 0x0020;
-		}
-		else if (en->puppetData.form == MM_FORM_DEKU)
-		{
-			base = 0x80920000;
 			Collision.radius = 0x10;
 			Collision.height = 0x0015;
 		}
 		else if (en->puppetData.form == MM_FORM_GORON)
 		{
-			base = 0x80940000;
-			Collision.radius = 0x10;
+			base = 0x80910000;
+			Collision.radius = 0x20;
 			Collision.height = 0x0015;
 		}
 		else if (en->puppetData.form == MM_FORM_ZORA)
 		{
-			base = 0x80960000;
-			Collision.radius = 0x10;
+			base = 0x80920000;
+			Collision.radius = 0x9;
 			Collision.height = 0x0015;
 		}
-		else if (en->puppetData.form == MM_FORM_FIERCE)
+		else if (en->puppetData.form == MM_FORM_DEKU)
 		{
-			base = 0x80980000;
-			Collision.radius = 0x10;
+			base = 0x80930000;
+			Collision.radius = 0x05;
 			Collision.height = 0x0015;
+		}
+		else if (en->puppetData.form == MM_FORM_HUMAN)
+		{
+			base = 0x80940000;
+			Collision.radius = 0x05;
+			Collision.height = 0x0020;
 		}
 
 		en->puppetData.playasData.base = base;
 		uint32_t skele = base + 0x0000500C;
 		uint32_t *seg2 = (uint32_t *)skele;
 		en->puppetData.playasData.skeleton = *seg2;
-		en->puppetData.form = *((uint8_t *)base + 0x0000500B);
 	}
+	else
+	{
+		en->puppetData.form = ((uint8_t *)0x801EF690)[0];
+		base = 0x80900000 + (en->puppetData.form * 10000);
+		en->puppetData.playasData.base = base;
+		uint32_t skele = base + 0x0000500C;
+		uint32_t *seg2 = (uint32_t *)skele;
+		en->puppetData.playasData.skeleton = *seg2;
+		en->puppetData.form = *((uint8_t *)base + 0x0000500B);
 
-	//en->puppetData.playasData.skeleton = 0x0601E244;
+		Collision.radius = 0x12;
+		Collision.height = 0x0020;
+	}
 
 	skelanime_init_mtx(
 		global,
@@ -156,13 +164,24 @@ static void init(entity_t *en, z64_global_t *global)
 
 static int MMAnimate(z64_global_t *global, int limb_number, uint32_t *display_list, vec3f_t *translation, vec3s_t *rotation, entity_t *en)
 {
+	float height;
+	if (en->puppetData.form == MM_FORM_FIERCE)
+		height = 1.4f; //Size = 1458
+	else if (en->puppetData.form == MM_FORM_GORON)
+		height = 0.64f;
+	else if (en->puppetData.form == MM_FORM_ZORA)
+		height = 0.90f;
+	else if (en->puppetData.form == MM_FORM_DEKU)
+		height = 0.20f;
+	else if (en->puppetData.form == MM_FORM_HUMAN)
+		height = 0.55f;
 
 	limb_number -= 1;
 	if (limb_number == 0)
 	{
 		z64_rot_t *frame_translation = (z64_rot_t *)en->current_frame_data;
 		translation->x += frame_translation->x;
-		translation->y += frame_translation->y * 0.55f;
+		translation->y += frame_translation->y * height;
 		translation->z += frame_translation->z;
 	}
 

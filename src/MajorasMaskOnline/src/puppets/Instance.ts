@@ -8,7 +8,6 @@ export class Data extends API.BaseObj {
 	core: API.IMMCore;
 	pointer: number;
 
-
 	constructor(
 		emu: IMemory,
 		pointer: number,

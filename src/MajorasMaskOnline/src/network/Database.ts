@@ -41,6 +41,7 @@ export class DatabaseClient extends Database {
     event_bak: Buffer = Buffer.alloc(0x64);
 
     intro_buffer: number = 0;
+    last_form: number = 4;
 
     in_game: boolean = false;
     is_rando: boolean = false;

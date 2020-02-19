@@ -109,8 +109,22 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_scene_change(scene: number, timeCard: boolean) {
-        if (scene === this.curScene) return;
+    handle_scene_change(scene: number, form: number, timeCard: boolean) {
+        if (scene === this.curScene) {
+            if (form !== this.db.last_form) {
+                this.db.last_form = form;
+                this.ModLoader.clientSide.sendPacket(
+                    new Net.SyncLocation(
+                        this.ModLoader.clientLobby,
+                        this.ModLoader.me,
+                        scene,
+                        form
+                    )
+                );
+                this.ModLoader.logger.info('[Tick] Changed forms[' + API.FormType[form] + '].');
+            }
+            return;
+        }
 
         // Clock can begin functioning
         if (timeCard) this.db.time_reset = false;
@@ -127,7 +141,7 @@ export class MmOnline implements IPlugin {
                 this.ModLoader.clientLobby,
                 this.ModLoader.me,
                 scene,
-                this.core.player.current_form
+                form
             )
         );
 
@@ -359,7 +373,7 @@ export class MmOnline implements IPlugin {
             // First player check
             if (this.db.has_game_plyr) {
                 // Check for new profile
-                if (stateData < stateStorage) {
+                if (!this.db.is_rando && stateData < stateStorage) {
                     this.core.save.intro_flag = stateStorage;
                     this.core.save.have_tatl = true;
                     this.core.player.current_form = API.FormType.DEKU;
@@ -990,11 +1004,11 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_button_states() {
+    handle_button_states(form: number) {
         let slot: number;
 
         // B Button Corrections
-        if (this.core.player.current_form === API.FormType.HUMAN) {
+        if (form === API.FormType.HUMAN) {
             slot = this.core.runtime.b_human;
 
             if (
@@ -1017,7 +1031,7 @@ export class MmOnline implements IPlugin {
                     slot !== API.ItemType.SWORD_GILDED)
                     this.core.runtime.b_human = API.ItemType.SWORD_GILDED;
             }
-        } else if (this.core.player.current_form === API.FormType.DEKU) {
+        } else if (form === API.FormType.DEKU) {
             slot = this.core.runtime.b_deku;
 
             if (slot === 0xfd && this.db.magic.bar !== 0)
@@ -1066,25 +1080,26 @@ export class MmOnline implements IPlugin {
             let zz = new zzstatic();
             this.ModLoader.payloadManager.registerPayloadType(new OverlayPayload('.ovl'));
 
-            // Human
-            let zChild = zz.doRepoint(fs.readFileSync(__dirname + '/Child.zobj'), 0);
-            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x900000, zChild) }, 100);
-
-            // Deku
-            let zDeku = zz.doRepoint(fs.readFileSync(__dirname + '/Deku.zobj'), 1);
-            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x920000, zDeku) }, 100);
+            // Fierce Deity
+            let zDeity = zz.doRepoint(fs.readFileSync(__dirname + '/Deity.zobj'), 0);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x900000, zDeity) }, 100);
 
             // Goron
-            let zGoron = zz.doRepoint(fs.readFileSync(__dirname + '/Goron.zobj'), 2);
-            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x940000, zGoron) }, 100);
+            let zGoron = zz.doRepoint(fs.readFileSync(__dirname + '/Goron.zobj'), 1);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x910000, zGoron) }, 100);
 
             // Zora
-            let zZora = zz.doRepoint(fs.readFileSync(__dirname + '/Zora.zobj'), 3);
-            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x960000, zZora) }, 100);
+            let zZora = zz.doRepoint(fs.readFileSync(__dirname + '/Zora.zobj'), 2);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x920000, zZora) }, 100);
 
-            // Fierce Deity
-            let zDeity = zz.doRepoint(fs.readFileSync(__dirname + '/Deity.zobj'), 4);
-            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x980000, zDeity) }, 100);
+            // Deku
+            let zDeku = zz.doRepoint(fs.readFileSync(__dirname + '/Deku.zobj'), 3);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x930000, zDeku) }, 100);
+
+            // Human
+            let zHuman = zz.doRepoint(fs.readFileSync(__dirname + '/Human.zobj'), 4);
+            this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x940000, zHuman) }, 100);
+
         }
 
         // Puppet Manager Inject
@@ -1110,6 +1125,7 @@ export class MmOnline implements IPlugin {
         // Initializers
         let bufStorage: Buffer;
         let bufData: Buffer;
+        let form: number = this.core.player.current_form;
         let scene: number = this.core.runtime.get_current_scene() & 0x000000ff;
         let cutscene: number = this.core.runtime.cutscene_ptr;
         let timeCard: boolean = this.core.runtime.get_current_scene() === 0x804d;
@@ -1130,7 +1146,7 @@ export class MmOnline implements IPlugin {
 
         // General Setup/Handlers
         this.handle_reset_time(scene, cutscene);
-        this.handle_scene_change(scene, timeCard);
+        this.handle_scene_change(scene, form, timeCard);
         this.handle_puppets(scene, isSafe);
 
         // Need to finish resetting the cycle
@@ -1162,7 +1178,7 @@ export class MmOnline implements IPlugin {
         this.handle_masks_slots(bufData!, bufStorage!);
 
         // Post Sync Handlers
-        this.handle_button_states();
+        this.handle_button_states(form);
     }
 
     @EventHandler(ModLoaderEvents.ON_ROM_PATCHED)

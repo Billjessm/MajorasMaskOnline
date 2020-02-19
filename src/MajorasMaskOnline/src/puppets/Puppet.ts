@@ -65,6 +65,7 @@ export class Puppet extends API.BaseObj {
 		}
 
 		this.isWaiting = true;
+		this.emulator.rdramWrite16(0x80000e, this.form);
 		this.core.commandBuffer.runCommand(
 			Command.SPAWN_ACTOR,
 			0x80800000,
