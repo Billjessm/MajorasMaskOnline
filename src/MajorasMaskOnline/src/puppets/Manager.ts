@@ -129,7 +129,10 @@ export class PuppetManager {
             let puppet: Puppet = this.awaitingSpawn.shift() as Puppet;
 
             // Make sure we should still spawn
-            if (this.scene !== -1 && puppet.scene === this.scene) puppet.spawn();
+            if (this.scene !== -1 && puppet.scene === this.scene) {
+                puppet.spawn();
+                return;
+            }
         }
     }
 
