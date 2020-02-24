@@ -89,19 +89,19 @@ static void init(entity_t *en, z64_global_t *global)
 		{
 			base = 0x80900000;
 			Collision.radius = 0x10;
-			Collision.height = 0x0015;
+			Collision.height = 0x003;
 		}
 		else if (en->puppetData.form == MM_FORM_GORON)
 		{
 			base = 0x80910000;
 			Collision.radius = 0x20;
-			Collision.height = 0x0015;
+			Collision.height = 0x0025;
 		}
 		else if (en->puppetData.form == MM_FORM_ZORA)
 		{
 			base = 0x80920000;
 			Collision.radius = 0x9;
-			Collision.height = 0x0015;
+			Collision.height = 0x0023;
 		}
 		else if (en->puppetData.form == MM_FORM_DEKU)
 		{
@@ -113,7 +113,7 @@ static void init(entity_t *en, z64_global_t *global)
 		{
 			base = 0x80940000;
 			Collision.radius = 0x05;
-			Collision.height = 0x0020;
+			Collision.height = 0x002;
 		}
 
 		en->puppetData.playasData.base = base;

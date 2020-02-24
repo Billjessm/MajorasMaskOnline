@@ -454,12 +454,20 @@ export class MmOnline implements IPlugin {
         this.ModLoader.clientSide.sendPacket(pData);
     }
 
-    handle_clock(scene: number) {
+    handle_clock(scene: number, timeCard: boolean) {
         // Time sync feature only
         if (this.db.timeless) return;
 
         // First player time card fix
         if (!this.db.has_game_plyr) return;
+
+        // In-Game time card fix
+        if (this.db.in_game && timeCard) {
+            //if (this.ModLoader.emulator.rdramRead8(0x1C6A7D) !== 0xff) { // Stored song value -- wasnt working -- needs investigation
+                //console.log("KILLING TIME!");
+                return;
+            //}
+        }
 
         if (this.db.clock_need_update) {
             this.core.save.clock.current_day = this.db.clock.current_day;
@@ -1153,7 +1161,7 @@ export class MmOnline implements IPlugin {
         if (!this.db.timeless && this.db.time_reset) return;
 
         // Sync Specials
-        this.handle_clock(scene);
+        this.handle_clock(scene, timeCard);
 
         // Sync Flags
         this.handle_cycle_flags(bufData!, bufStorage!);
@@ -2044,7 +2052,7 @@ export class MmOnline implements IPlugin {
     @ServerNetworkHandler('SyncPuppet')
     onServer_SyncPuppet(packet: Net.SyncPuppet) {
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
-        if (sDB.players === null) return;
+        if (!sDB.hasOwnProperty("players") || sDB.players === null) return;
         Object.keys(sDB.players).forEach((key: string) => {
             if (sDB.players[key] !== sDB.players[packet.player.uuid]) {
                 return;
@@ -2375,6 +2383,16 @@ export class MmOnline implements IPlugin {
         if (timeData !== timeStorage) needUpdate = true;
 
         if (!needUpdate) return;
+
+        // console.log('#################################')
+        // console.log('CLOCK:   ')
+        // console.log('CLOCK:   ' + this.db.clock.current_day)
+        // console.log('CLOCK:   ' + this.db.clock.elapsed)
+        // console.log('CLOCK:   ' + this.db.clock.is_night)
+        // console.log('CLOCK:   ' + this.db.clock.speed)
+        // console.log('CLOCK:   ' + this.db.clock.time)
+        // console.log('CLOCK:   ')
+        // console.log('#################################')
 
         this.db.clock = packet.clock;
         this.db.clock_need_update = true;
