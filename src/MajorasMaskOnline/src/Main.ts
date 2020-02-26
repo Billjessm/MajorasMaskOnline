@@ -64,7 +64,7 @@ export class MmOnline implements IPlugin {
             this.db.event_need_update = true;
         }
 
-        if (this.db.has_game_plyr) {
+        if (this.db.has_game_plyr && !this.db.in_game) {
             this.db.bank_need_update = true;
             this.db.health_need_update = true;
             this.db.keys_need_update = true;
@@ -1123,12 +1123,13 @@ export class MmOnline implements IPlugin {
     onTick(): void {
         // Make sure we dont process game when not playing
         if (!this.core.isPlaying()) {
-            if (this.core.isTitleScreen() && this.db.has_game_data)
-                this.reset_session();
+            if (this.db.has_game_data) this.reset_session();
 
             this.db.in_game = false;
             return;
-        }
+        } 
+        // Ensure the resetting is still happening until we are fully in game
+        else if (!this.db.in_game) this.reset_session();
 
         // Initializers
         let bufStorage: Buffer;
@@ -2052,7 +2053,7 @@ export class MmOnline implements IPlugin {
     @ServerNetworkHandler('SyncPuppet')
     onServer_SyncPuppet(packet: Net.SyncPuppet) {
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
-        if (!sDB.hasOwnProperty("players") || sDB.players === null) return;
+        if (sDB === null || sDB.players === null) return;
         Object.keys(sDB.players).forEach((key: string) => {
             if (sDB.players[key] !== sDB.players[packet.player.uuid]) {
                 return;
