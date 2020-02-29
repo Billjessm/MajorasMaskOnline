@@ -58,13 +58,15 @@ export class MmOnline implements IPlugin {
     }
 
     reset_session() {
+        if (!this.db.has_game_data || !this.db.has_game_plyr) return;
+
         if (!this.db.timeless) {
             this.db.clock_need_update = true;
             this.db.cycle_need_update = true;
             this.db.event_need_update = true;
         }
 
-        if (this.db.has_game_plyr && !this.db.in_game) {
+        if (!this.db.in_game) {
             this.db.bank_need_update = true;
             this.db.health_need_update = true;
             this.db.keys_need_update = true;
@@ -464,8 +466,8 @@ export class MmOnline implements IPlugin {
         // In-Game time card fix
         if (this.db.in_game && timeCard) {
             //if (this.ModLoader.emulator.rdramRead8(0x1C6A7D) !== 0xff) { // Stored song value -- wasnt working -- needs investigation
-                //console.log("KILLING TIME!");
-                return;
+            //console.log("KILLING TIME!");
+            return;
             //}
         }
 
@@ -1123,11 +1125,10 @@ export class MmOnline implements IPlugin {
     onTick(): void {
         // Make sure we dont process game when not playing
         if (!this.core.isPlaying()) {
-            if (this.db.has_game_data) this.reset_session();
-
+            this.reset_session();
             this.db.in_game = false;
             return;
-        } 
+        }
         // Ensure the resetting is still happening until we are fully in game
         else if (!this.db.in_game) this.reset_session();
 
@@ -1289,6 +1290,10 @@ export class MmOnline implements IPlugin {
     onServer_RequestStorage(packet: Packet): void {
         this.ModLoader.logger.info('[Server] Sending: {Lobby Storage}');
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let pData = new Net.SyncStorage(
             packet.lobby,
             sDB.cycle_flags,
@@ -1322,6 +1327,9 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
+        // Safety check
+        if (sDB === null) return;
+
         // Only overwrite if lobby host
         if (!sDB.hasConfig) {
             sDB.timeless = packet.timeless;
@@ -1352,6 +1360,9 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
 
         // Time sync feature only
         if (sDB.timeless) return;
@@ -1395,6 +1406,9 @@ export class MmOnline implements IPlugin {
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
+        // Safety check
+        if (sDB === null) return;
+
         // Time sync feature only
         if (sDB.timeless) return;
 
@@ -1431,6 +1445,9 @@ export class MmOnline implements IPlugin {
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
+        // Safety check
+        if (sDB === null) return;
+
         // Time sync feature only
         if (sDB.timeless) return;
 
@@ -1466,6 +1483,10 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Received: {Game Flags}');
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let data: Buffer = sDB.game_flags;
         let count: number = data.byteLength;
         let i = 0;
@@ -1495,6 +1516,10 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Received: {Owl Flags}');
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let data: Buffer = sDB.owl_flags;
         let count: number = data.byteLength;
         let i = 0;
@@ -1524,6 +1549,10 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Received: {Intro State Flags}');
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let data: number = sDB.intro_state;
         let needUpdate = false;
 
@@ -1544,6 +1573,9 @@ export class MmOnline implements IPlugin {
         this.ModLoader.logger.info('[Server] Received: {Scene Flags}');
 
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
 
         // Time sync feature only
         if (sDB.timeless) return;
@@ -1584,6 +1616,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let count: number = sDB.bank;
         let needUpdate = false;
 
@@ -1605,6 +1641,9 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
 
         // Time sync feature only
         if (sDB.timeless) return;
@@ -1647,6 +1686,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let needUpdate = false;
 
         // Ensure has_game_data check completed        
@@ -1689,6 +1732,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let health: Net.HealthData = sDB.health;
         let needUpdate = false;
 
@@ -1733,6 +1780,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let magic: Net.MagicData = sDB.magic;
         let needUpdate = false;
 
@@ -1761,6 +1812,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let map: Net.MapData = sDB.map;
         let i: number;
         let count = map.mini.byteLength;
@@ -1804,6 +1859,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let status: number = sDB.quest_status;
         let needUpdate = false;
 
@@ -1833,6 +1892,9 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
+        // Safety check
+        if (sDB === null) return;
+
         // Ensure has_game_data check completed        
         sDB.has_game_data = true;
 
@@ -1854,6 +1916,9 @@ export class MmOnline implements IPlugin {
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
 
+        // Safety check
+        if (sDB === null) return;
+
         // Ensure has_game_data check completed        
         sDB.has_game_data = true;
 
@@ -1874,6 +1939,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let equips: Net.EquipData = sDB.equips;
         let val1: number;
         let val2: number;
@@ -1929,6 +1998,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let data: Buffer = sDB.items;
         let val1 = 0;
         let val2 = 0;
@@ -1998,6 +2071,10 @@ export class MmOnline implements IPlugin {
 
         // Initializers
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let data: Buffer = sDB.masks;
         let count: number = data.byteLength;
         let val1 = 0;
@@ -2034,6 +2111,10 @@ export class MmOnline implements IPlugin {
     @ServerNetworkHandler('SyncLocation')
     onServer_SyncLocation(packet: Net.SyncLocation) {
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
+        if (sDB === null) return;
+
         let pMsg = 'Player[' + packet.player.nickname + ']';
         let sMsg = 'Scene[' + this.scene_name(packet.scene) + ']';
         sDB.players[packet.player.uuid] = packet.scene;
@@ -2053,7 +2134,10 @@ export class MmOnline implements IPlugin {
     @ServerNetworkHandler('SyncPuppet')
     onServer_SyncPuppet(packet: Net.SyncPuppet) {
         let sDB: Net.DatabaseServer = this.ModLoader.lobbyManager.getLobbyStorage(packet.lobby, this) as Net.DatabaseServer;
+
+        // Safety check
         if (sDB === null || sDB.players === null) return;
+
         Object.keys(sDB.players).forEach((key: string) => {
             if (sDB.players[key] !== sDB.players[packet.player.uuid]) {
                 return;
