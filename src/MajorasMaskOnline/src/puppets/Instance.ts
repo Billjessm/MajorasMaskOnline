@@ -1,7 +1,5 @@
 import IMemory from 'modloader64_api/IMemory';
-import { IRomMemory } from 'modloader64_api/IRomMemory';
 import * as API from 'MajorasMask/API/Imports';
-import { IModLoaderAPI } from 'modloader64_api/IModLoaderAPI';
 
 export class Data extends API.BaseObj {
 	private readonly copyFields: string[] = new Array<string>();
@@ -22,7 +20,7 @@ export class Data extends API.BaseObj {
 		this.copyFields.push('rot');
 		this.copyFields.push('col_tunic');
 	}
-	ModLoader = {} as IModLoaderAPI;
+	
 	get anim(): Buffer {
 		return this.core.player.anim;
 	}

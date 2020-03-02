@@ -1085,7 +1085,7 @@ export class MmOnline implements IPlugin {
         buf = tools.decompressFileFromRom(this.rom, 654);
         this.core.player.tunic_color = buf.readInt32BE(0xb39c);
 
-        // Inject puppet zobj
+        // Inject puppet zobjs
         {
             let zz = new zzstatic();
             this.ModLoader.payloadManager.registerPayloadType(new OverlayPayload('.ovl'));
@@ -1109,7 +1109,6 @@ export class MmOnline implements IPlugin {
             // Human
             let zHuman = zz.doRepoint(fs.readFileSync(__dirname + '/Human.zobj'), 4);
             this.ModLoader.utils.setTimeoutFrames(() => { this.ModLoader.emulator.rdramWriteBuffer(0x940000, zHuman) }, 100);
-
         }
 
         // Puppet Manager Inject
@@ -2955,5 +2954,4 @@ export class OverlayPayload extends PayloadType {
         dest.rdramWriteBuffer(parseInt(meta.addr), buf);
         return slot;
     }
-
 }
