@@ -558,6 +558,17 @@ export class MmOnline implements IPlugin {
         // Time sync feature only
         if (this.db.timeless) return;
 
+        // Ensure keys dont have -1 value -- denoflions solution
+        if (this.core.save.dungeon_keys.wood_fall === 0xff)
+            this.core.save.dungeon_keys.wood_fall = 0x00;
+        if (this.core.save.dungeon_keys.snow_head === 0xff)
+            this.core.save.dungeon_keys.snow_head = 0x00;
+        if (this.core.save.dungeon_keys.great_bay === 0xff)
+            this.core.save.dungeon_keys.great_bay = 0x00;
+        if (this.core.save.dungeon_keys.stone_tower === 0xff)
+            this.core.save.dungeon_keys.stone_tower = 0x00;
+
+        // Sync Key data from network
         if (this.db.keys_need_update) {
             this.core.save.dungeon_keys.raw = this.db.dungeon.keys;
             this.db.keys_need_update = false;
