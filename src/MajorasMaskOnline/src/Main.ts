@@ -2885,10 +2885,11 @@ export class MmOnline implements IPlugin {
         let sMsg = 'Scene[' + this.scene_name(packet.scene) + ']';
         this.pMgr.changePuppetScene(packet.player, packet.scene, packet.form);
 
-        if (packet.scene !== API.SceneType.NONE) {
-            this.ModLoader.logger.info('[Client] Received: {Player Scene}');
+        this.ModLoader.logger.info('[Client] Received: {Player Scene}');
+        if (packet.scene !== -1 /* API.SceneType.NONE */)
+            this.ModLoader.logger.info('[Client] Updated: ' + pMsg + ' has unloaded the scene.');
+        else
             this.ModLoader.logger.info('[Client] Updated: ' + pMsg + ' to ' + sMsg);
-        }
 
         this.check_db_instance(this.db, packet.scene);
     }

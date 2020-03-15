@@ -96,8 +96,10 @@ export class PuppetManager {
         puppet.scene = scene;
         puppet.form = form;
 
-        if (puppet.scene !== API.SceneType.NONE)
-            this.log('Puppet moved to scene[' + this.scene_name(puppet.scene) + ']');
+        if (puppet.scene !== API.SceneType.NONE) {
+            if (puppet.scene === 0xff) this.log('Puppet removed from scene');
+            else this.log('Puppet moved to scene[' + this.scene_name(puppet.scene) + ']');
+        }
     }
 
     handleNewPlayers() {
