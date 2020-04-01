@@ -1342,7 +1342,8 @@ export class MmOnline implements IPlugin {
 
         // Only overwrite if lobby host
         if (!sDB.hasConfig) {
-            sDB.timeless = packet.timeless;
+            /* TMP */ sDB.timeless = true;
+            // sDB.timeless = packet.timeless;
 
             sDB.hasConfig = true;
             this.ModLoader.logger.info('[Server] Updated: {Lobby Config}');
